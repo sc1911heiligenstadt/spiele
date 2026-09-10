@@ -387,7 +387,8 @@ const bildschirme = (function () {
 
     h += '<div class="karte"><h3>1. Burnout</h3>';
     h += '<p>Vor der Ampel: den <b>Schalthebel nach unten ziehen</b> und halten. Ein Balken füllt sich — das sind die Reifen, die warm werden. Im <b>grünen Bereich wieder hochziehen</b>.</p>';
-    h += '<p class="leise">Zu kalt = die Reifen drehen beim Start durch. Zu heiß = auch schlecht. Genau richtig = bester Start.</p></div>';
+    h += '<p class="leise">Zu kalt = die Reifen drehen beim Start durch. Zu heiß = auch schlecht. Genau richtig = bester Start.</p>';
+    h += '<p class="leise">Das siehst du auch: beim Anfahren schlingert das Auto. Mit schlecht aufgewärmten Reifen deutlich mehr. <b>Du musst dagegen nichts tun</b> — es kostet keine Zeit und du kannst dadurch nichts verlieren.</p></div>';
 
     h += '<div class="karte"><h3>2. Der Start</h3>';
     h += '<p>Drei gelbe Lichter, dann grün. Der Abstand ist <b>immer gleich</b> (eine halbe Sekunde) — man kann den Takt lernen.</p>';

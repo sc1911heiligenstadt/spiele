@@ -101,6 +101,7 @@ const rennen = (function () {
       hebelP: 0,
       hebelOben: false,
       hebelUntenSeit: -1,
+      letzterGangAb: -1,
     };
 
     /* Der Bot wird komplett vorausgerechnet — sein ganzer Lauf steht schon
@@ -411,7 +412,7 @@ const rennen = (function () {
       const warAus = z.lauf.aus;
       physik.laufeBis(z.lauf, t, z.eingaben);
       const nachNoten = z.lauf.noten.perfekt + z.lauf.noten.gut + z.lauf.noten.zufrueh + z.lauf.noten.ueberdreht;
-      if (nachNoten > vorNoten && z.lauf.gang > vorGang) meldeSchaltung();
+      if (nachNoten > vorNoten && z.lauf.gang > vorGang) { z.letzterGangAb = z.lauf.t; meldeSchaltung(); }
       if (z.lauf.aus && !warAus) { melde('SPUR VERLASSEN', 'schlecht'); ton.piep('fehler'); ton.vibriere([300, 100, 300]); }
       if (z.lauf.fertig && z.lauf.fahrzeit !== null && !z.zielGemeldet) {
         z.zielGemeldet = true;
@@ -568,13 +569,17 @@ const rennen = (function () {
 
     /* Autos: das weiter entfernte zuerst, damit es hinten liegt. */
     const gegner = gegnerStand(t);
-    const meinU = -0.5;
+    const meinSchling = schlingern(meinSchlingerZustand(), 0);
     const meinD = KAMERA_ABSTAND;
-    const wagen = [{ d: meinD, u: meinU, lack: z.opt.meinLack, name: null, aus: z.lauf && z.lauf.aus }];
+    const wagen = [{ d: meinD, u: -0.5 + meinSchling, schling: meinSchling, lack: z.opt.meinLack, name: null, aus: z.lauf && z.lauf.aus }];
     if (gegner) {
+      /* Der Gegner schlingert auch - aus SEINEM Stand gerechnet, mit einem
+         Zeitversatz, damit nicht beide Autos im Gleichtakt wackeln. */
+      const gs = gegner.fertig || gegner.aus ? 0 : schlingern({ t: t, s: gegner.s, v: gegner.v || 0, griff: 0.9, schaltAb: -1 }, 0.37);
       wagen.push({
         d: KAMERA_ABSTAND + (gegner.s - meineS),
-        u: 0.5,
+        u: 0.5 + gs,
+        schling: gs,
         lack: z.opt.gegnerLack,
         name: z.opt.gegnerName,
         aus: gegner.aus,
@@ -714,6 +719,82 @@ const rennen = (function () {
     }
   }
 
+  /* ----------------------------------------------------------------------
+     Schlingern - REINE OPTIK
+     ----------------------------------------------------------------------
+     Michel: "lass das Auto gerne etwas schlingern." Das Auto wackelt also
+     wieder, aber es ist NICHTS ZU BEDIENEN und es kostet KEINE ZEIT.
+
+     ⚠️ DESHALB STEHT DAS HIER UND NICHT IN physik.js. Die Lenkung ist genau
+     daran dreimal gescheitert, dass Wackeln und Wertung zusammenhingen: wer
+     nicht gegenhielt, verlor. Sobald diese Rechnung den Rechenkern anfasst,
+     faengt das von vorne an. Der Rechenkern kennt keine Seitenrichtung mehr,
+     und das soll so bleiben.
+
+     Woraus es sich zusammensetzt:
+       - Anfahren: die Reifen kaempfen um Grip. Am staerksten bei null, weg
+         bei 40 m - dieselbe Strecke, ueber die auch `l.griff` ausklingt.
+       - Kalte oder verbrannte Reifen zappeln mehr. Das macht den Burnout
+         auch SICHTBAR, nicht nur eine Zahl in der Auswertung.
+       - Nach jedem Gangwechsel ein kurzer Versatz, der in einer halben
+         Sekunde ausklingt.
+       - Darunter ein leises Grundzittern, damit nichts wie auf Schienen
+         wirkt.
+     ---------------------------------------------------------------------- */
+
+  const SCHLING_START = 0.20;   // Bahnbreiten beim Anfahren
+  const SCHLING_SCHALT = 0.10;  // Ruck nach einem Gangwechsel
+  const SCHLING_GRUND = 0.030;  // Grundzittern bei Tempo
+  const SCHLING_WEG = 40;       // Meter, ueber die das Anfahr-Zappeln ausklingt
+  const SCHLING_ABKLINGEN = 0.55; // Sekunden, in denen ein Schaltruck vergeht
+  const SCHLING_GRENZE = 0.30;  // weiter schlaegt es nie aus
+
+  /**
+   * Wie weit das Auto gerade seitlich steht - in Bahnbreiten, wie `u`.
+   * `zust` ist {t, s, v, gang, griff} und darf auch vom Gegner kommen.
+   */
+  function schlingern(zust, versatz) {
+    if (!zust || zust.t <= 0) return 0;
+    const t = zust.t + (versatz || 0);
+
+    /* Anfahren: voll bei 0 m, nichts mehr ab SCHLING_WEG. */
+    let anfahren = 1 - Math.min(1, (zust.s || 0) / SCHLING_WEG);
+    anfahren *= anfahren;
+    /* Schlechter Griff zappelt mehr - 1.0 ist die Punktlandung. */
+    const griff = zust.griff === undefined || zust.griff === null ? 0.9 : zust.griff;
+    const schlecht = Math.max(0, 1 - griff);
+
+    let a = SCHLING_START * anfahren * (0.55 + schlecht * 2.2);
+
+    /* Ruck nach dem Gangwechsel */
+    if (zust.schaltAb !== undefined && zust.schaltAb >= 0) {
+      const her = t - zust.schaltAb;
+      if (her >= 0 && her < SCHLING_ABKLINGEN) {
+        const rest = 1 - her / SCHLING_ABKLINGEN;
+        a += SCHLING_SCHALT * rest * rest;
+      }
+    }
+
+    a += SCHLING_GRUND;
+
+    /* Drei Schwingungen mit krummen Verhaeltnissen - so wiederholt sich das
+       Muster nicht hoerbar oft und sieht nicht nach Sinuskurve aus. */
+    const w = Math.sin(t * 11.3) * 0.6 + Math.sin(t * 7.1 + 1.7) * 0.3 + Math.sin(t * 19.7 + 0.4) * 0.1;
+    /* ⚠️ Harte Grenze. Die Bahnen liegen bei -0,5 und +0,5, das Auto ist
+       0,30 Bahnbreiten breit - ab etwa 0,32 Ausschlag haengt eine Ecke ueber
+       der Mittellinie, und dann sieht es aus, als waere man auf der falschen
+       Bahn. Schlechte Reifen plus Schaltruck kamen zusammen auf 0,375. */
+    const aus = a * w;
+    return Math.max(-SCHLING_GRENZE, Math.min(SCHLING_GRENZE, aus));
+  }
+
+  /** Der Zustand fuers Schlingern aus dem eigenen Lauf. */
+  function meinSchlingerZustand() {
+    const l = z.lauf;
+    if (!l || !l.gestartet || l.fertig || l.aus) return null;
+    return { t: l.t, s: l.s, v: l.v, griff: l.griff, schaltAb: z.letzterGangAb };
+  }
+
   function zeichneAuto(g, horizont, boden, mitte, halb, wa) {
     /* ⚠️ Wer weiter als sechs Meter zurückliegt, wird NICHT mehr gezeichnet.
        Vorher wurde der Abstand auf -7,5 m geklemmt: ein Gegner dreißig Meter
@@ -732,6 +813,16 @@ const rennen = (function () {
 
     g.save();
     g.globalAlpha = wa.aus ? 0.45 : 1;
+
+    /* ⚠️ Beim Schlingern stellt sich das Heck schraeg - ohne das sieht es
+       aus, als schoebe jemand das Auto seitlich ueber die Bahn. Gedreht wird
+       um die Hinterachse, nicht um die Bildmitte. */
+    const schief = (wa.schling || 0) * 0.85;
+    if (schief !== 0) {
+      g.translate(x, y);
+      g.rotate(Math.max(-0.22, Math.min(0.22, schief)));
+      g.translate(-x, -y);
+    }
 
     /* Schatten */
     g.fillStyle = 'rgba(0,0,0,0.45)';
@@ -830,9 +921,11 @@ const rennen = (function () {
     /* ⚠️ Weit genug von der Ecke weg: mit rad 46 bei (b-62, h-58) hing der
        Ring halb außerhalb des Bildes. */
     const rad = Math.min(46, h * 0.14);
-    /* ⚠️ Unten LINKS: rechts haengt der Schalthebel, und seit die Lenkung
-       weg ist, ist die linke Ecke frei geworden. */
-    const cx = rad + 30, cy = h - rad - 30;
+    /* ⚠️ OBEN LINKS. Rechts haengt der Schalthebel, und unten links faehrt
+       das eigene Auto - beim Anfahren schlingert es genau in diese Ecke und
+       verschwand hinter dem Ring. Oben ist die einzige freie Stelle: die Uhr
+       darueber ist schmal, und dort ist ohnehin nur Himmel. */
+    const cx = rad + 26, cy = rad + 86;
     const von = Math.PI * 0.75, bis = Math.PI * 2.25;
     const f = physik.fenster(l.auto, l.gang);
 
@@ -1084,5 +1177,9 @@ const rennen = (function () {
        NICHT nach - genau diese Doppelrechnung hat den Schieber kaputt
        gemacht (gezeichnet 4,5-40,5 %, getippt 0-45 %). */
     masze: function () { return z ? { hebel: hebelBahn() } : null; },
+    /* ⚠️ Nur zum Nachmessen. Das Schlingern ist REINE OPTIK und darf nie in
+       eine Wertung einfliessen - es liegt genau deshalb hier und nicht im
+       Rechenkern. Der Pruefstand haelt beides fest. */
+    schlingern: schlingern,
   };
 })();

@@ -701,5 +701,83 @@ console.log('\n=== 8. Zwei Rennen hintereinander ===\n');
   }
 }
 
+/* --------------------------------------------------------------------------
+   10. Schlingern ist REINE OPTIK
+   --------------------------------------------------------------------------
+   Michel: "lass das Auto gerne etwas schlingern." Das Auto wackelt also
+   wieder - aber es ist nichts zu bedienen und es kostet keine Zeit.
+
+   ⚠️ GENAU HIER LAG DER GANZE AERGER DAVOR. Dreimal war das Wackeln mit der
+   Wertung verknuepft, dreimal hiess das Ergebnis "unspielbar". Diese
+   Pruefungen halten die Trennung fest: der Rechenkern kennt keine
+   Seitenrichtung, und das Schlingern lebt allein im Bild.
+   -------------------------------------------------------------------------- */
+{
+  console.log('');
+  console.log('=== 10. Schlingern ist reine Optik ===');
+  console.log('');
+
+  /* --- Der Rechenkern darf gar keine Seitenrichtung kennen --- */
+  const probe = physik.neuerLauf(autos.nachId('muscle'), 4242, 0.9);
+  const seitlich = ['versatz', 'seitTempo', 'lenkStellung', 'lenkNachlauf', 'zuege', 'spurVerlust'];
+  const gefunden = seitlich.filter(function (k) { return probe[k] !== undefined; });
+  pruefe('der Rechenkern hat keine Seitenrichtung mehr', gefunden.length === 0,
+    gefunden.length ? 'noch da: ' + gefunden.join(', ') : 'keins von ' + seitlich.length);
+  pruefe('und auch keine Lenkfunktionen',
+    typeof physik.lenke === 'undefined' && typeof physik.lenkeStellung === 'undefined'
+    && typeof physik.ausbrecher === 'undefined');
+
+  /* --- Das Schlingern selbst --- */
+  const S_BREITE = 800, S_HOEHE = 400;
+  const w3 = neueWelt(60);
+  const r3 = ladeRennen(w3);
+  const lw3 = leinwandAttrappe(S_BREITE, S_HOEHE);
+  const g3 = w3.uhr + r3.vorlaufMs(false);
+  r3.starte({
+    canvas: lw3, auto: autos.nachId('muscle'), saat: 4242, burnout: false, gruenZeit: g3,
+    meinName: 'Du', meinLack: 'rot', gegnerName: 'Uhr', gegnerLack: 'weiss',
+    gegner: null, jetzt: w3.jetzt, aufPosition: null, fertig: function () {},
+  });
+
+  function ausschlag(zust) { return Math.abs(r3.schlingern(zust, 0)); }
+  function groesstesUeber(zust, von, bis) {
+    let m = 0;
+    for (let t = von; t <= bis; t += 1 / 120) m = Math.max(m, ausschlag(Object.assign({}, zust, { t: t })));
+    return m;
+  }
+
+  const amStart = groesstesUeber({ s: 0, v: 3, griff: 1.0, schaltAb: -1 }, 0.05, 1.2);
+  const spaeter = groesstesUeber({ s: 300, v: 60, griff: 1.0, schaltAb: -1 }, 5, 7);
+  console.log('  beim Anfahren  ' + amStart.toFixed(3) + ' Bahnbreiten');
+  console.log('  bei Tempo      ' + spaeter.toFixed(3) + ' Bahnbreiten');
+
+  pruefe('das Auto schlingert ueberhaupt', amStart > 0.05, amStart.toFixed(3));
+  pruefe('beim Anfahren mehr als bei Tempo', amStart > spaeter * 2,
+    amStart.toFixed(3) + ' gegen ' + spaeter.toFixed(3));
+  pruefe('bei Tempo bleibt ein leises Zittern', spaeter > 0.005 && spaeter < 0.08, spaeter.toFixed(3));
+
+  /* ⚠️ Es darf NIE so weit ausschlagen, dass das Auto auf der Nachbarbahn
+     stuende. Die Bahnen liegen bei -0,5 und +0,5, die Mittellinie bei 0. */
+  let groesster = 0;
+  for (const griff of [0.6, 0.7, 0.86, 1.0]) {
+    for (let sMeter = 0; sMeter <= 402; sMeter += 2) {
+      groesster = Math.max(groesster, groesstesUeber({ s: sMeter, v: 40, griff: griff, schaltAb: 0.2 }, 0.2, 0.9));
+    }
+  }
+  console.log('  groesster Ausschlag ueberhaupt ' + groesster.toFixed(3) + ' Bahnbreiten');
+  pruefe("es schlaegt nie bis zur Mittellinie aus", groesster <= 0.301, groesster.toFixed(3));
+
+  /* Kalte Reifen zappeln mehr - so wird der Burnout sichtbar. */
+  const kaltAus = groesstesUeber({ s: 5, v: 8, griff: 0.66, schaltAb: -1 }, 0.05, 1.0);
+  const warmAus = groesstesUeber({ s: 5, v: 8, griff: 1.0, schaltAb: -1 }, 0.05, 1.0);
+  pruefe('kalte Reifen zappeln mehr als eine Punktlandung', kaltAus > warmAus * 1.3,
+    kaltAus.toFixed(3) + ' gegen ' + warmAus.toFixed(3));
+
+  /* Vor dem Losfahren steht das Auto still. */
+  pruefe('vor Gruen steht das Auto still', r3.schlingern({ t: -1, s: 0, v: 0, griff: 1 }, 0) === 0);
+
+  r3.stopp();
+}
+
 console.log('\n' + (fehler === 0 ? 'ALLES GRÜN' : fehler + ' FEHLER') + ' — ' + geprueft + ' Prüfungen\n');
 process.exit(fehler === 0 ? 0 : 1);

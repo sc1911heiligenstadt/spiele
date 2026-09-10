@@ -29,6 +29,7 @@ const FUNKTIONEN = [
     items: [
       'Gefahren wird mit einem einzigen Bedienelement: dem Schalthebel. Oben ist Gas, unten ist ausgekuppelt. Anfassen darf man ihn überall auf dem Bild — nur die Höhe des Fingers zählt.',
       'Burnout: vor der Ampel den Hebel nach unten ziehen und halten, im grünen Bereich wieder hochziehen — dann greifen die Reifen beim Start.',
+      'Beim Anfahren schlingert das Auto, mit schlechten Reifen deutlich mehr. Das ist reine Optik: es kostet keine Zeit, und man kann dadurch nichts verlieren.',
       'Start: drei gelbe Lichter im festen Takt, dann grün. Bei Grün den Hebel nach oben. Die Reaktionszeit zählt voll zur Endzeit; wer vor Grün hochzieht, hat verloren.',
       'Schalten: einmal nach unten ziehen und wieder nach oben. Der Gang geht rein, sobald der Hebel unten ankommt — dort zielt man auf den grünen Bereich am Tacho.',
       'Solange der Hebel unten steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit; ein flinker Zug kostet fast nichts. Ein kurzes Stück zurück reicht fürs Gas, und nach einer knappen halben Sekunde federt der Hebel von allein hoch.',
@@ -74,6 +75,20 @@ const FUNKTIONEN = [
 ];
 
 const CHANGELOG = [
+  {
+    version: '1.7',
+    groups: [
+      {
+        title: 'Das Auto schlingert wieder - aber nur fuers Auge',
+        items: [
+          'Beim Anfahren kaempfen die Reifen um Grip: das Auto wackelt und stellt sich leicht schraeg, am staerksten bei null und weg nach vierzig Metern. Nach jedem Gangwechsel gibt es einen kurzen Ruck, und darunter liegt ein leises Grundzittern.',
+          'Wie stark es zappelt, haengt am Burnout. Kalte oder verbrannte Reifen tanzen deutlich mehr - damit sieht man endlich, was der Balken vor dem Start eigentlich bewirkt hat.',
+          'Wichtig: das ist REINE OPTIK. Es ist nichts zu bedienen, es kostet keine Zeit, und verlieren kann man dadurch nicht. Der Rechenkern kennt ueberhaupt keine Seitenrichtung mehr, und der Pruefstand haelt genau das fest.',
+          'Der Tacho ist nach oben links gewandert. Unten links faehrt das eigene Auto, und beim Anfahren schlingerte es genau hinter den Ring.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.6',
     groups: [
