@@ -27,11 +27,13 @@ const FUNKTIONEN = [
   {
     title: 'Die vier Dinge, die man können muss',
     items: [
-      'Burnout: vor der Ampel den rechten Daumen halten und im grünen Bereich loslassen — dann greifen die Reifen beim Start.',
-      'Start: drei gelbe Lichter im festen Takt, dann grün. Die Reaktionszeit zählt voll zur Endzeit; wer vor Grün tippt, hat verloren.',
-      'Schalten: den grünen Bereich am Tacho treffen. Er wird mit jedem Gang schmaler, ein ganz knapper Treffer gibt einen kleinen Schub.',
-      'Spur halten: zwei- bis dreimal je Rennen zieht das Auto zur Seite, ein Pfeil warnt vorher und die richtige Schieberhälfte leuchtet auf.',
-      'Gelenkt wird über einen Schieber unten links: wo der Daumen liegt, dahin lenkt das Auto — außen voll, in der Mitte geradeaus, dazwischen anteilig. Wer gar nicht gegenlenkt, berührt die Linie und verliert.',
+      'Gefahren wird mit zwei Daumen: links ein Joystick zum Lenken, rechts ein Schalthebel. Oben am Hebel ist Gas, unten ist ausgekuppelt.',
+      'Burnout: vor der Ampel den Hebel nach unten ziehen und halten, im grünen Bereich wieder hochziehen — dann greifen die Reifen beim Start.',
+      'Start: drei gelbe Lichter im festen Takt, dann grün. Bei Grün den Hebel nach oben. Die Reaktionszeit zählt voll zur Endzeit; wer vor Grün hochzieht, hat verloren.',
+      'Schalten: einmal nach unten ziehen und wieder nach oben. Der Gang geht rein, sobald der Hebel unten ankommt — dort zielt man auf den grünen Bereich am Tacho.',
+      'Solange der Hebel unten steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit; ein flinker Zug kostet fast nichts.',
+      'Spur halten: zwei- bis dreimal je Rennen zieht das Auto zur Seite, ein Pfeil warnt vorher und zeigt, wohin der Daumen soll.',
+      'Der Joystick wirkt unmittelbar: wo der Daumen liegt, dahin lenkt das Auto — außen voll, in der Mitte geradeaus, dazwischen anteilig. Wer gar nicht gegenlenkt, berührt die Linie und verliert.',
       'Zu weit zu lenken kostet nie das Rennen: die eigene Lenkung schiebt niemanden über die gegenüberliegende Linie.',
     ],
   },
@@ -75,6 +77,22 @@ const FUNKTIONEN = [
 ];
 
 const CHANGELOG = [
+  {
+    version: '1.4',
+    groups: [
+      {
+        title: 'Steuerung neu: Joystick links, Schalthebel rechts',
+        items: [
+          'Rechts liegt jetzt ein Schalthebel statt einer Tippflaeche. Oben ist Gas, unten ist ausgekuppelt. Bei Gruen zieht man ihn hoch, geschaltet wird mit einem Zug nach unten und wieder hoch.',
+          'Der Gang geht rein, sobald der Hebel unten ankommt. Damit ist der Moment, den der Daumen anvisiert, auch der Moment, an dem die Nadel abgelesen wird.',
+          'Solange der Hebel unten steht, kommt kein Gas an. Ein flinker Zug kostet fast nichts, ein traeger rund zwei Zehntel. Die Kupplungspause im Rechenkern ist dafuer von 0,16 auf 0,07 Sekunden gesunken - die Pause macht jetzt die Hand.',
+          'Links liegt ein runder Joystick statt eines Balkens, und er reagiert praktisch unmittelbar: die Glaettung ist von 0,12 auf 0,04 Sekunden herunter, der Nachlauf eines kurzen Tippers von 0,20 auf 0,06.',
+          'Der Tacho ist nach links gerueckt, weil in der Ecke jetzt der Hebel haengt.',
+          'Der Bot schaltet ueber denselben Hebel und zahlt dieselben Zehntel - wie flink er daran ist, gehoert jetzt zur Schwierigkeitsstufe.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.3',
     groups: [

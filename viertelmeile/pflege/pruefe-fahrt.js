@@ -579,5 +579,122 @@ function mitStellung(auto, saat, stellung, richtungGegenZug) {
    Ergebnis
    -------------------------------------------------------------------------- */
 
+/* --------------------------------------------------------------------------
+   10. Der Schalthebel
+   --------------------------------------------------------------------------
+   Michel: "gas geben sollte nach oben sein, schalten einmal nach unten ziehen
+   und wieder nach oben gehen." Damit ist Schalten keine Zeitpunkt-Frage mehr,
+   sondern eine Bewegung mit Dauer - und solange der Hebel unten ist, gibt es
+   keinen Vortrieb.
+
+   ⚠️ DER BOT MUSS DIESELBE ZEIT ZAHLEN. Ruft er `schalte()` direkt, schaltet
+   er in null Sekunden und ist unschlagbar schnell, ohne dass irgendetwas nach
+   einem Fehler aussieht.
+   -------------------------------------------------------------------------- */
+
+console.log('');
+console.log('=== 10. Der Schalthebel ===');
+console.log('');
+
+{
+  const auto = autos.nachId('muscle');
+
+  const l = physik.neuerLauf(auto, 4242, undefined);
+  physik.starte(l, 0);
+  physik.laufeBis(l, 2.0, []);
+  const gangVor = l.gang;
+
+  physik.hebel(l, false);
+  pruefe('herunterziehen legt EINEN Gang ein', l.gang === gangVor + 1,
+    'Gang ' + (gangVor + 1) + ' -> ' + (l.gang + 1));
+  pruefe('unten nimmt den Vortrieb weg', l.gasAn === false);
+
+  const gangJetzt = l.gang;
+  physik.hebel(l, false);
+  physik.hebel(l, false);
+  pruefe('unten bleiben schaltet nicht weiter', l.gang === gangJetzt,
+    'Gang ' + (l.gang + 1));
+
+  const vorTempo = l.v;
+  physik.laufeBis(l, 2.4, []);
+  pruefe('unten wird das Auto nicht schneller', l.v <= vorTempo,
+    z3(vorTempo) + ' -> ' + z3(l.v) + ' m/s');
+
+  physik.hebel(l, true);
+  pruefe('oben liegt wieder Gas an', l.gasAn === true);
+  pruefe('der Weg nach oben schaltet nicht noch einmal', l.gang === gangJetzt,
+    'Gang ' + (l.gang + 1));
+}
+
+/* --- Wer den Hebel langsam zieht, verliert Zeit. Das ist der Sinn. -------- */
+{
+  const auto = autos.nachId('muscle');
+  function mitHebelzeit(dauer) {
+    const l = physik.neuerLauf(auto, 12345, undefined);
+    physik.starte(l, 0);
+    let t = 0, unten = false, untenBis = -1;
+    while (t < 18 && !l.fertig && !l.aus) {
+      const ein = [];
+      t += 1 / 120;
+      for (const z of l.zuege) {
+        if (Math.abs(t - (z.zeit + 0.5)) < 1 / 240) ein.push({ zeit: t, art: 'lenkStellung', wert: -z.richtung });
+        if (Math.abs(t - (z.zeit + 1.4)) < 1 / 240) ein.push({ zeit: t, art: 'lenkStellung', wert: 0 });
+      }
+      if (unten) {
+        if (t >= untenBis) { ein.push({ zeit: t, art: 'hebel', oben: true }); unten = false; }
+      } else if (l.gang < auto.gaenge.length - 1 && l.t >= l.leerlaufBis && physik.drehzahl(l) >= 0.985) {
+        ein.push({ zeit: t, art: 'hebel', oben: false });
+        unten = true; untenBis = t + dauer;
+      }
+      ein.sort(function (a, b) { return a.zeit - b.zeit; });
+      physik.laufeBis(l, t, ein);
+    }
+    return l;
+  }
+
+  const flink = mitHebelzeit(0.10);
+  const traege = mitHebelzeit(0.30);
+  console.log('  flink am Hebel (0,10 s)  ' + z3(flink.zielZeit) + ' s');
+  console.log('  traege am Hebel (0,30 s) ' + z3(traege.zielZeit) + ' s');
+  pruefe('eine saubere Fahrt liegt bei rund zehn Sekunden',
+    flink.zielZeit > 9.5 && flink.zielZeit < 11.5, z3(flink.zielZeit) + ' s');
+  pruefe('wer am Hebel troedelt, verliert Zeit',
+    traege.zielZeit - flink.zielZeit > 0.10,
+    '+ ' + z3(traege.zielZeit - flink.zielZeit) + ' s');
+
+  /* --- Und der Bot zahlt sie auch ----------------------------------------
+     Gemessen wird der Bot GEGEN SICH SELBST: einmal mit seiner Hebelzeit,
+     einmal mit Hebelzeit null. Ein Vergleich mit einer Menschenfahrt taugt
+     dafuer nicht - dort unterscheiden sich auch Burnout und Lenkverzug, und
+     man misst am Ende alles ausser dem Hebel. */
+  function botZeiten(zug) {
+    const merk = bot.STUFEN.schwer.hebelZug, merkStreu = bot.STUFEN.schwer.hebelStreu;
+    bot.STUFEN.schwer.hebelZug = zug;
+    bot.STUFEN.schwer.hebelStreu = 0;
+    const liste = [];
+    for (let i = 0; i < 120; i++) {
+      const b = bot.fahre(auto, 3000 + i, 'schwer', 8000 + i);
+      liste.push(!b.aus && b.zielZeit !== null ? b.zielZeit : null);
+    }
+    bot.STUFEN.schwer.hebelZug = merk;
+    bot.STUFEN.schwer.hebelStreu = merkStreu;
+    return liste;
+  }
+  /* ⚠️ PAARWEISE vergleichen, nicht zwei Mittelwerte. Wer nur mittelt,
+     vergleicht auch noch, WELCHE Rennen zu Ende gefahren wurden - und ein
+     Lauf, in dem drei langsame Fahrten ausscheiden, sieht dann schneller
+     aus. Genau daran hat diese Pruefung zuerst falsch angeschlagen. */
+  const mitL = botZeiten(0.12), ohneL = botZeiten(0);
+  let dSumme = 0, paare = 0;
+  for (let i = 0; i < mitL.length; i++) {
+    if (mitL[i] === null || ohneL[i] === null) continue;
+    dSumme += mitL[i] - ohneL[i]; paare++;
+  }
+  const kosten = dSumme / paare;
+  console.log('  Hebelzeit 0,12 s kostet den Bot + ' + z3(kosten) + ' s (' + paare + ' Paare)');
+  pruefe('der Bot schaltet nicht in null Sekunden', kosten > 0.05,
+    '+ ' + z3(kosten) + ' s');
+}
+
 console.log('\n' + (fehler === 0 ? 'ALLES GRÜN' : fehler + ' FEHLER') + ' — ' + geprueft + ' Prüfungen\n');
 process.exit(fehler === 0 ? 0 : 1);

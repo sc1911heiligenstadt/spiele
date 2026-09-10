@@ -30,6 +30,7 @@ const bot = (function () {
       reaktion: 0.48, reaktionStreu: 0.11,
       waerme: 0.58, waermeStreu: 0.26,
       schaltZiel: 0.900, schaltStreu: 0.060,
+      hebelZug: 0.30, hebelStreu: 0.10,
       lenkVerzug: 0.46, lenkAussetzer: 0.055,
     },
     mittel: {
@@ -37,6 +38,7 @@ const bot = (function () {
       reaktion: 0.33, reaktionStreu: 0.075,
       waerme: 0.86, waermeStreu: 0.15,
       schaltZiel: 0.955, schaltStreu: 0.032,
+      hebelZug: 0.20, hebelStreu: 0.06,
       lenkVerzug: 0.34, lenkAussetzer: 0.014,
     },
     schwer: {
@@ -44,6 +46,7 @@ const bot = (function () {
       reaktion: 0.235, reaktionStreu: 0.045,
       waerme: 0.93, waermeStreu: 0.075,
       schaltZiel: 0.985, schaltStreu: 0.018,
+      hebelZug: 0.12, hebelStreu: 0.035,
       lenkVerzug: 0.26, lenkAussetzer: 0.004,
     },
   };
@@ -71,6 +74,8 @@ const bot = (function () {
     p.starte(l, reaktion);
 
     const verpennt = Object.create(null);
+    let hebelUntenBis = -1;
+    let schaltZiel = null;
     let naechsteSpur = 0;
     let wache = 0;
 
@@ -82,10 +87,34 @@ const bot = (function () {
       }
       if (l.fertig || l.aus) break;
 
-      /* Schalten: sobald die Nadel den eigenen Zielwert erreicht. */
-      if (l.gang < auto.gaenge.length - 1 && l.t >= l.leerlaufBis) {
-        const ziel = Math.max(0.55, s.schaltZiel + streu(w, s.schaltStreu));
-        if (p.drehzahl(l) >= ziel) p.schalte(l);
+      /* Schalten laeuft ueber den HEBEL, genau wie beim Menschen: runter,
+         kurz halten, wieder hoch.
+         ⚠️ Ohne das waere der Bot unfair schnell. Solange der Hebel unten
+         ist, gibt es keinen Vortrieb - ein Mensch zahlt diese Zehntel jedes
+         Mal, ein Bot, der `schalte()` direkt ruft, zahlt sie nie. Wie flink
+         der Bot am Hebel ist, gehoert deshalb zur Stufe. */
+      if (hebelUntenBis >= 0) {
+        if (l.t >= hebelUntenBis) { p.hebel(l, true); hebelUntenBis = -1; }
+      } else if (l.gang < auto.gaenge.length - 1 && l.t >= l.leerlaufBis) {
+        /* ⚠️ DAS ZIEL WIRD EINMAL JE GANG GEWUERFELT, nicht in jedem
+           Rechenschritt. Vorher fiel bei 120 Wuerfen je Sekunde irgendwann
+           ein niedriger Wert, und der Bot schaltete faktisch beim KLEINSTEN
+           gezogenen Ziel statt beim gewuerfelten — `schaltStreu` war damit
+           keine Streuung, sondern ein stiller Vorzieher. Aufgefallen ist es
+           daran, dass ein TRAEGERER Hebel den Bot schneller machte: er
+           uebersprang Rechenschritte, zog dadurch andere Zufallszahlen und
+           landete auf besseren Schaltpunkten. */
+        if (schaltZiel === null) schaltZiel = Math.max(0.55, s.schaltZiel + streu(w, s.schaltStreu));
+        if (p.drehzahl(l) >= schaltZiel) {
+          p.hebel(l, false);
+          schaltZiel = null;
+          /* ⚠️ KEIN `||`-RUECKFALL BEI ZAHLEN. `s.hebelZug || 0.2` macht aus
+             einer echten 0 die 0,2 — und genau daran hat der Prueflauf
+             gemessen, ein traegerer Hebel mache den Bot schneller. */
+          const zug = s.hebelZug === undefined ? 0.2 : s.hebelZug;
+          const streuung = s.hebelStreu === undefined ? 0.05 : s.hebelStreu;
+          hebelUntenBis = l.t + Math.max(0.04, zug + streu(w, streuung));
+        }
       }
 
       /* Gegenlenken: erst nach der eigenen Schrecksekunde — dann wird

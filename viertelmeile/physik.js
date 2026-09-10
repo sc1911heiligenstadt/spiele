@@ -20,7 +20,12 @@ const physik = (function () {
   const STRECKE = 402.34;       // Viertelmeile in Metern
   const SCHRITT = 1 / 120;      // fester Rechentakt in Sekunden
   const LUFT = 0.00055;         // Luftwiderstand (a = LUFT * v^2 * auto.luft)
-  const SCHALT_LEER = 0.16;     // Sekunden ohne Vortrieb beim Gangwechsel
+  const SCHALT_LEER = 0.07;     // Sekunden ohne Vortrieb beim Gangwechsel
+  /* ⚠️ KLEIN, WEIL DER HEBEL DIE PAUSE MACHT. Solange der Daumen den Hebel
+     unten haelt, gibt es ohnehin keinen Vortrieb. Stand SCHALT_LEER auf 0,16,
+     verschwand die ganze Handbewegung darin: ein flinker Zug (0,12 s) kostete
+     messbar NULL, und der Hebel war reine Deko. Jetzt bestimmt die Hand die
+     Pause, und die Kupplung legt nur noch etwas drauf. */
   const SCHUB = 0.8;            // m/s Extra für einen perfekten Treffer
 
   /* ----------------------------------------------------------------------
@@ -58,12 +63,12 @@ const physik = (function () {
      lenkt, wird vom Zug trotzdem hinausgeschoben.
      Kurz: verlieren kann man nur durchs Nichtstun oder durch die falsche
      Richtung — nie durch zu viel des Richtigen. */
-  const LENK_GRENZE = 0.72;     // so weit schiebt die eigene Lenkung höchstens
+  const LENK_GRENZE = 0.66;     // so weit schiebt die eigene Lenkung höchstens
   const LENK_BREMSWEG = 0.25;   // auf dieser Strecke davor wird sie weich
-  const ANSPRECH = 0.12;        // Sekunden, bis das Auto der Vorgabe folgt
+  const ANSPRECH = 0.04;        // Sekunden, bis das Auto der Vorgabe folgt (fast unmittelbar)
   const SCHLEIFEN = 30;         // Tempoverlust beim Schleifen (quadratisch)
   const SCHLEIF_AB = 0.10;      // darunter kostet ein Wackeln nichts
-  const MIN_LENK = 0.20;        // so lange wirkt auch der kürzeste Tipper
+  const MIN_LENK = 0.06;        // so lange wirkt auch der kürzeste Tipper
   /* ⚠️ LANG UND SANFT, NICHT KURZ UND BRUTAL. Erst dauerte ein Ausbrecher
      1,25 s und war so stark, dass er in dieser Zeit bis über die Linie reichte.
      Damit war jede Zehntelsekunde Verzug tödlich: wer erst nach einer halben
@@ -189,6 +194,8 @@ const physik = (function () {
       v: 0,                 // Tempo in m/s
       gang: 0,
       leerlaufBis: -1,      // solange kein Vortrieb (Kupplung)
+      gasAn: true,          // der Hebel steht oben
+      hebelUnten: false,    // der Daumen hat ihn heruntergezogen
       versatz: 0,           // seitlich, -1 bis 1
       seitTempo: 0,
       lenkStellung: 0,          // -1 ganz links … +1 ganz rechts, 0 geradeaus
@@ -213,6 +220,40 @@ const physik = (function () {
     const g = l.auto.gaenge[l.gang];
     return l.v / g.vMax;
   }
+
+  /**
+   * DER SCHALTHEBEL. Oben ist Gas, unten ist ausgekuppelt.
+   *
+   * Gerufen wird das mit der Stellung des rechten Daumens: `oben` true heißt,
+   * der Hebel steht oben. Ein voller Zug nach unten UND zurück nach oben ist
+   * ein Gangwechsel — genau die Bewegung, die man am echten Hebel macht.
+   *
+   * ⚠️ DER GANG WECHSELT BEIM HERUNTERZIEHEN, nicht auf dem Weg zurück.
+   * Damit ist der Zeitpunkt, den der Daumen anvisiert, auch der Zeitpunkt,
+   * an dem die Nadel abgelesen wird — ein Ziel, kein Ratespiel. Der erste
+   * Entwurf wertete auf dem Weg nach oben aus: dann fiel die Nadel während
+   * des Ziehens noch, und wer LANGSAMER zog, traf das grüne Fenster besser.
+   * Gemessen war der Bot mit trägem Hebel schneller als mit flinkem — genau
+   * verkehrt herum.
+   *
+   * Solange der Hebel unten steht, gibt es keinen Vortrieb. Trödeln unten
+   * kostet also Tempo, und zwar sauber steigend.
+   */
+  function hebel(l, oben) {
+    if (!l || l.fertig || l.aus) return null;
+    if (oben) {
+      l.gasAn = true;
+      l.hebelUnten = false;
+      return null;
+    }
+    l.gasAn = false;
+    if (l.hebelUnten) return null;       // er war schon unten
+    l.hebelUnten = true;
+    return schalte(l);
+  }
+
+  /** Nur Gas an/aus, ohne Schaltlogik — für Prüfstände und den Bot. */
+  function gas(l, an) { if (l) l.gasAn = !!an; }
 
   /** Der Fahrer tippt aufs Schaltfeld. */
   function schalte(l) {
@@ -323,7 +364,7 @@ const physik = (function () {
     const g = l.auto.gaenge[l.gang];
     const r = l.v / g.vMax;
     let a = 0;
-    if (l.t >= l.leerlaufBis) a = g.kraft * drehmoment(r);
+    if (l.t >= l.leerlaufBis && l.gasAn) a = g.kraft * drehmoment(r);
 
     /* Der Griff aus dem Burnout zählt nur beim Anfahren. Ab 40 m ist es egal. */
     if (l.s < 40) {
@@ -409,6 +450,8 @@ const physik = (function () {
         else if (e.art === 'lenkAn') lenkeAn(l, e.richtung);
         else if (e.art === 'lenkAus') lenkeAus(l);
         else if (e.art === 'lenk') lenke(l, e.richtung);
+        else if (e.art === 'hebel') hebel(l, e.oben);
+        else if (e.art === 'gas') gas(l, e.an);
         else schalte(l);
       }
       schritt(l, SCHRITT);
@@ -468,6 +511,8 @@ const physik = (function () {
     neuerLauf: neuerLauf,
     drehzahl: drehzahl,
     schalte: schalte,
+    hebel: hebel,
+    gas: gas,
     lenke: lenke,
     lenkeAn: lenkeAn,
     lenkeAus: lenkeAus,

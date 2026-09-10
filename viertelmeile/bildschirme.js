@@ -385,28 +385,29 @@ const bildschirme = (function () {
 
   function hilfe() {
     let h = '<h1>Anleitung</h1>';
-    h += '<div class="hinweis info">Handy quer halten. Unten links ist ein <b>Lenk-Schieber</b>: wo der Daumen liegt, dahin lenkt das Auto. Rechter Daumen macht alles andere.</div>';
+    h += '<div class="hinweis info">Handy quer halten. <b>Links der Joystick</b> zum Lenken, <b>rechts der Schalthebel</b>. Oben ist Gas, unten ist ausgekuppelt.</div>';
 
     h += '<div class="karte"><h3>1. Burnout</h3>';
-    h += '<p>Vor der Ampel: <b>rechts halten</b>. Ein Balken füllt sich — das sind die Reifen, die warm werden. Im <b>grünen Bereich loslassen</b>.</p>';
+    h += '<p>Vor der Ampel: den <b>Schalthebel nach unten ziehen</b> und halten. Ein Balken füllt sich — das sind die Reifen, die warm werden. Im <b>grünen Bereich wieder hochziehen</b>.</p>';
     h += '<p class="leise">Zu kalt = die Reifen drehen beim Start durch. Zu heiß = auch schlecht. Genau richtig = bester Start.</p></div>';
 
     h += '<div class="karte"><h3>2. Der Start</h3>';
     h += '<p>Drei gelbe Lichter, dann grün. Der Abstand ist <b>immer gleich</b> (eine halbe Sekunde) — man kann den Takt lernen.</p>';
-    h += '<p>Bei Grün <b>rechts tippen</b>. Deine Reaktionszeit zählt voll zur Endzeit.</p>';
-    h += '<p class="warn"><b>Vor</b> Grün getippt = Frühstart = sofort verloren. Tippen beide zu früh, verliert der Frühere.</p></div>';
+    h += '<p>Bei Grün den <b>Hebel nach oben</b>. Oben ist Gas. Deine Reaktionszeit zählt voll zur Endzeit.</p>';
+    h += '<p class="warn"><b>Vor</b> Grün hochgezogen = Frühstart = sofort verloren. Sind beide zu früh, verliert der Frühere.</p></div>';
 
     h += '<div class="karte"><h3>3. Schalten</h3>';
-    h += '<p>Unten rechts ist der Tacho. Die Nadel klettert. Ganz oben ist der <b>grüne Bereich</b> — dort <b>rechts tippen</b>.</p>';
-    h += '<p class="leise">Zu früh: das Auto zieht schlecht weiter. Zu spät: der Motor kreischt im Begrenzer. Beides kostet ungefähr eine halbe Sekunde.</p>';
-    h += '<p class="leise">Der grüne Bereich wird mit jedem Gang <b>schmaler</b>. Ein ganz knapper Treffer gibt einen kleinen Extra-Schub.</p>';
+    h += '<div class="hinweis info" style="margin:8px 0"><b>Einmal nach unten ziehen und wieder nach oben.</b><br>Der Gang wird eingelegt, sobald der Hebel <b>unten ankommt</b> — auf diesen Moment zielst du.</div>';
+    h += '<p>Links neben dem Hebel ist der Tacho. Die Nadel klettert. Ganz oben ist der <b>grüne Bereich</b> — dort <b>runterziehen</b>.</p>';
+    h += '<p class="leise">Zu früh: das Auto zieht schlecht weiter. Zu spät: der Motor kreischt im Begrenzer. Der grüne Bereich wird mit jedem Gang <b>schmaler</b>, ein ganz knapper Treffer gibt einen kleinen Extra-Schub.</p>';
+    h += '<p class="warn">Solange der Hebel <b>unten</b> steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit — gemessen zwei Zehntel, wenn man sich eine Drittelsekunde Zeit lässt. Also zügig zurück nach oben.</p>';
     h += '<p class="leise">Der Motorton steigt mit der Drehzahl. Wer auf den Ton hört, muss nicht auf den Tacho schauen.</p></div>';
 
     h += '<div class="karte"><h3>4. Lenken</h3>';
-    h += '<p>Unten links liegt ein <b>Schieber</b> über die halbe Bildbreite. <b>Wo dein Daumen liegt, dahin lenkt das Auto.</b></p>';
-    h += '<div class="hinweis info" style="margin:8px 0"><b>Links außen = voll links. Mitte = geradeaus. Rechts außen = voll rechts.</b><br>Dazwischen alles anteilig — je weiter außen, desto stärker. Finger weg = geradeaus.</div>';
-    h += '<p>Du kannst <b>hintippen</b> oder den Daumen <b>hin und her ziehen</b>. Beides geht, und der runde Knopf zeigt dir immer, wie weit du gerade einschlägst.</p>';
-    h += '<p class="leise">Zwei- bis dreimal pro Rennen zieht das Auto zur Seite, jeweils knapp zwei Sekunden lang. Ein Pfeil warnt vorher, und die Schieberhälfte leuchtet auf, in die du sollst.</p>';
+    h += '<p>Unten links liegt ein <b>Joystick</b>. <b>Wo dein Daumen liegt, dahin lenkt das Auto</b> — und zwar sofort.</p>';
+    h += '<div class="hinweis info" style="margin:8px 0"><b>Ganz links = voll links. Mitte = geradeaus. Ganz rechts = voll rechts.</b><br>Dazwischen alles anteilig. Finger weg = geradeaus.</div>';
+    h += '<p>Du kannst <b>hintippen</b> oder den Daumen <b>hin und her schieben</b>. Beides geht, und der Knopf zeigt dir immer, wo du stehst.</p>';
+    h += '<p class="leise">Zwei- bis dreimal pro Rennen zieht das Auto zur Seite, jeweils knapp zwei Sekunden lang. Ein Pfeil warnt vorher und zeigt, wohin du sollst.</p>';
     h += '<p class="leise">Etwa der halbe Weg nach außen <b>hält</b> den Zug auf. Weiter außen holst du das Auto <b>zurück</b>. Oben in der Mitte zeigt ein Punkt, wo du in der Spur stehst.</p>';
     h += '<p class="hinweis info" style="margin:8px 0">Zu weit zu lenken kostet dich <b>nie</b> das Rennen — die Lenkung schiebt dich nicht über die andere Linie. Verlieren kannst du nur, wenn du gar nicht reagierst oder in die falsche Richtung lenkst.</p>';
     h += '<p class="leise">Spät reagiert = du wirst langsamer. Gar nicht reagiert = du berührst die Linie und hast verloren.</p>';

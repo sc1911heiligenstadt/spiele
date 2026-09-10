@@ -102,7 +102,10 @@ const rennen = (function () {
       abgebrochen: false,
       nummer: ++laufNummer,
       lenkStellungJetzt: 0,
-      lenkRohJetzt: 0,
+      joyX: 0,
+      joyY: 0,
+      hebelP: 0,
+      hebelOben: false,
     };
 
     /* Der Bot wird komplett vorausgerechnet — sein ganzer Lauf steht schon
@@ -155,61 +158,67 @@ const rennen = (function () {
   let gasZeiger = null;
   let lenkZeiger = null;
 
-  const PAD_ANTEIL = 0.45;      // so breit ist der Lenk-Schieber (Anteil des Bildes)
-  const TOTZONE = 0.08;         // in der Mitte passiert nichts
-  const BAHN_LUFT = 0.075;       // Anteil der Padbreite, den die Bahn an jedem Ende frei lässt
-  const BAHN_UNTEN = 78;        // so weit über der unteren Bildkante liegt die Bahn
-  const BAHN_HOCH = 26;
+  const PAD_ANTEIL = 0.45;      // links vom Daumen: der Joystick. Rechts: der Hebel.
+  const TOT_JOY = 0.06;         // ganz kleine Wackler zaehlen nicht
+  const HEBEL_OBEN = 0.62;      // ab hier gilt der Hebel als oben (Gas)
+  const HEBEL_UNTEN = 0.30;     // darunter als unten (ausgekuppelt)
 
   function zone(x) { return x < z.breite * PAD_ANTEIL ? 'lenk' : 'gas'; }
 
   /**
-   * Die Bahn des Schiebers — EINE Quelle für Zeichnen UND Tippen.
+   * Der Joystick unten links - EINE Quelle fuer Zeichnen UND Tippen.
    *
-   * ⚠️ Vorher rechneten beide getrennt: gezeichnet wurde von 4,5 % bis 40,5 %
-   * der Bildbreite, gerechnet aber von 0 % bis 45 %. Wer den Daumen ans
-   * sichtbare Ende legte, bekam nur 78 % Ausschlag, und der Knopf stand
-   * sichtbar neben dem Finger. Volles Einschlagen war innerhalb der
-   * gezeichneten Bahn überhaupt nicht erreichbar.
+   * Klein und rund, kein Balken. Michel nach dem Balken: "das links rechts
+   * ist noch zu hakelig, darf gerne fast Echtzeit sein und wirklich mit
+   * einem kleinen Joystick".
    *
-   * ⚠️ Und sie liegt bewusst NICHT am unteren Bildrand. Dort liegen auf dem
-   * Handy die Leiste des Browsers und der Streifen fürs Wischen nach Hause —
-   * ein Daumen, der dort liegt, kommt in der Seite nie an.
+   * Er sitzt FEST, nicht dort, wo der Finger aufkommt. Ein Joystick, der
+   * unter dem Finger entsteht, verlangt erst eine Ziehbewegung, bevor
+   * ueberhaupt etwas passiert - wer einfach hintippt, erreichte nichts.
    */
-  function bahn() {
-    const pad = z.breite * PAD_ANTEIL;
-    const luft = pad * BAHN_LUFT;
-    const von = luft, bis = pad - luft;
-    return {
-      pad: pad, von: von, bis: bis,
-      mitte: pad / 2, halb: (bis - von) / 2,
-      y: z.hoehe - BAHN_UNTEN, hoch: BAHN_HOCH,
-    };
+  function joystick() {
+    const r = Math.max(44, Math.min(58, z.hoehe * 0.17));
+    return { x: r + 34, y: z.hoehe - r - 34, r: r };
   }
 
-  /** Rohstellung -1…1 aus der Daumenposition, noch ohne Totzone. */
+  /**
+   * Der Schalthebel rechts - Gas ist oben, ausgekuppelt ist unten.
+   *
+   * ⚠️ NICHT AN DER UNTEREN BILDKANTE. Dort liegen auf dem Handy die Leiste
+   * des Browsers und der Streifen fuers Wischen nach Hause; ein Daumen, der
+   * dort liegt, kommt im Spiel nie an.
+   */
+  function hebelBahn() {
+    const hoch = Math.max(110, Math.min(210, z.hoehe * 0.56));
+    const br = 54;
+    const unten = z.hoehe - 52;   /* Platz fuer die Beschriftung darunter */
+    return { x: z.breite - br / 2 - 20, br: br, unten: unten, oben: unten - hoch, hoch: hoch };
+  }
+
+  /** Hebelstellung 0 (unten) bis 1 (oben) aus der Daumenhoehe. */
+  function hebelAus(y) {
+    const s = hebelBahn();
+    if (s.hoch <= 0) return 1;
+    let p = (s.unten - y) / s.hoch;
+    if (p > 1) p = 1;
+    if (p < 0) p = 0;
+    return p;
+  }
+
+  /** Auslenkung -1..1 aus der Daumenposition, noch ohne Totzone. */
   function rohAus(x) {
-    const s = bahn();
-    if (s.halb <= 0) return 0;
-    let a = (x - s.mitte) / s.halb;
+    const j = joystick();
+    if (j.r <= 0) return 0;
+    let a = (x - j.x) / j.r;
     if (a > 1) a = 1;
     if (a < -1) a = -1;
     return a;
   }
 
-  /**
-   * Wo der Daumen im Lenkfeld liegt → Schieberstellung von -1 bis +1.
-   *
-   * ⚠️ ABSOLUT, NICHT RELATIV ZUM AUFSETZPUNKT. Ein Joystick, der dort
-   * entsteht, wo der Finger zuerst aufkommt, verlangt eine Ziehbewegung,
-   * bevor überhaupt etwas passiert — wer einfach links hintippt, hätte
-   * weiterhin nichts erreicht. So ist die linke Kante immer „ganz links",
-   * die Mitte immer „geradeaus", und Tippen UND Ziehen funktionieren beide.
-   */
   function stellungAus(x) {
     const a = rohAus(x);
-    if (Math.abs(a) < TOTZONE) return 0;
-    const v = (Math.abs(a) - TOTZONE) / (1 - TOTZONE);
+    if (Math.abs(a) < TOT_JOY) return 0;
+    const v = (Math.abs(a) - TOT_JOY) / (1 - TOT_JOY);
     return a < 0 ? -v : v;
   }
 
@@ -221,35 +230,83 @@ const rennen = (function () {
     ton.entsperre();
     const rect = z.canvas.getBoundingClientRect();
     const x = (e.clientX !== undefined ? e.clientX : 0) - rect.left;
+    const y = (e.clientY !== undefined ? e.clientY : 0) - rect.top;
     const t = tRel();
-    const zn = zone(x);
 
-    if (zn === 'gas') {
+    if (zone(x) === 'gas') {
       gasZeiger = zeigerId(e);
-      /* Burnout: halten, im grünen Bereich loslassen. */
-      if (!z.burnoutFertig && t >= z.plan.burnoutVon && t < z.plan.burnoutBis) { z.haelt = true; return; }
-      if (!z.lauf) return;
-      if (z.lauf.reaktion === null) {
-        if (t < T_STAGING) return;                 // vor dem Anrollen zählt nichts
-        physik.starte(z.lauf, t);
-        if (z.lauf.fehlstart) {
-          melde('FRÜHSTART', 'schlecht');
-          ton.piep('fehler');
-          ton.vibriere([220, 90, 220]);
-        } else {
-          ton.vibriere(45);
-        }
-        return;
-      }
-      z.eingaben.push({ zeit: t, art: 'schalt' });
+      setzeHebel(hebelAus(y), t);
       return;
     }
     if (!z.lauf || !z.lauf.gestartet) return;
     lenkZeiger = zeigerId(e);
-    z.lenkRohJetzt = rohAus(x);
-    z.lenkStellungJetzt = stellungAus(x);
-    z.eingaben.push({ zeit: t, art: 'lenkStellung', wert: z.lenkStellungJetzt });
+    setzeLenkung(x, y, t);
     ton.vibriere(12);
+  }
+
+  /**
+   * DER HEBEL. Alles, was rechts passiert, laeuft hier durch.
+   *
+   * ⚠️ EINE einzige Regel: NACH OBEN ZIEHEN IST DIE HANDLUNG.
+   *   - vor dem Anrollen  : nichts
+   *   - waehrend der Ampel: Fruehstart
+   *   - bei Gruen         : losfahren
+   *   - danach            : Gang hoch
+   * Und weil unten kein Vortrieb ist, kostet Troedeln unten Tempo - genau
+   * wie beim echten Hebel.
+   *
+   * ⚠️ MIT HYSTERESE. Ohne sie loest ein Daumen, der auf der Schwelle
+   * zittert, Schaltvorgang um Schaltvorgang aus.
+   */
+  function setzeHebel(p, t) {
+    z.hebelP = p;
+    const obenNeu = z.hebelOben ? p > HEBEL_UNTEN : p >= HEBEL_OBEN;
+    const wechsel = obenNeu !== z.hebelOben;
+    z.hebelOben = obenNeu;
+
+    /* Burnout: unten halten laesst die Reifen drehen, hochziehen beendet ihn.
+       ⚠️ Das haengt an der STELLUNG, nicht am Wechsel — der Hebel steht vor
+       dem Start ohnehin unten, ein Griff dorthin waere also gar kein Wechsel.
+       Und es braucht einen echten Finger: ohne den federt der Hebel nur
+       nach unten, und die Reifen wuerden ewig von allein qualmen. */
+    if (!z.burnoutFertig && t < z.plan.burnoutBis) {
+      if (gasZeiger !== null && !obenNeu && t >= z.plan.burnoutVon) { z.haelt = true; return; }
+      if (z.haelt) { z.haelt = false; z.burnoutFertig = true; ton.quietschenAus(); zeigeBurnoutNote(); }
+      return;
+    }
+
+    if (!wechsel) return;
+    if (!obenNeu) { z.eingaben.push({ zeit: t, art: 'hebel', oben: false }); return; }
+
+    if (!z.lauf) return;
+    if (z.lauf.reaktion === null) {
+      if (t < T_STAGING) return;                 // vor dem Anrollen zaehlt nichts
+      physik.starte(z.lauf, t);
+      if (z.lauf.fehlstart) {
+        melde('FRUEHSTART', 'schlecht');
+        ton.piep('fehler');
+        ton.vibriere([220, 90, 220]);
+      } else {
+        ton.vibriere(45);
+      }
+      return;
+    }
+    z.eingaben.push({ zeit: t, art: 'hebel', oben: true });
+  }
+
+  /** Der Daumen im Joystickfeld - genau das IST das Lenken. */
+  function setzeLenkung(x, y, t) {
+    const j = joystick();
+    let dx = (x - j.x) / j.r, dy = (y - j.y) / j.r;
+    if (dx > 1) dx = 1; if (dx < -1) dx = -1;
+    if (dy > 1) dy = 1; if (dy < -1) dy = -1;
+    const laenge = Math.sqrt(dx * dx + dy * dy);
+    z.joyX = laenge > 1 ? dx / laenge : dx;
+    z.joyY = laenge > 1 ? dy / laenge : dy;
+    const wert = stellungAus(x);
+    if (Math.abs(wert - z.lenkStellungJetzt) < 0.015) return;
+    z.lenkStellungJetzt = wert;
+    z.eingaben.push({ zeit: t, art: 'lenkStellung', wert: wert });
   }
 
   function beiHoch(e) {
@@ -257,13 +314,17 @@ const rennen = (function () {
     const id = zeigerId(e);
     if (lenkZeiger !== null && id === lenkZeiger) {
       lenkZeiger = null;
-      z.lenkRohJetzt = 0;
+      z.joyX = 0; z.joyY = 0;
       z.lenkStellungJetzt = 0;
       z.eingaben.push({ zeit: tRel(), art: 'lenkStellung', wert: 0 });
     }
-    if (gasZeiger !== null && id !== gasZeiger) return;
+    if (gasZeiger === null || id !== gasZeiger) return;
     gasZeiger = null;
-    if (z.haelt) { z.haelt = false; z.burnoutFertig = true; ton.quietschenAus(); zeigeBurnoutNote(); }
+    /* ⚠️ Losgelassen heisst NICHT "Hebel egal". Vor dem Losfahren federt er
+       nach unten - man haelt das Auto ja an der Linie. Danach nach oben, denn
+       ein Daumen, der kurz abrutscht, darf nicht das Gas wegnehmen. */
+    const laeuftSchon = z.lauf && z.lauf.reaktion !== null;
+    setzeHebel(laeuftSchon ? 1 : 0, tRel());
   }
 
   function zeigeBurnoutNote() {
@@ -274,22 +335,17 @@ const rennen = (function () {
     else if (note === 'verbrannt') melde('REIFEN VERBRANNT', 'schlecht');
   }
 
-  /** Der Daumen wandert im Lenkfeld — genau das IST das Lenken. */
   function beiZug(e) {
-    if (!z || z.beendet || lenkZeiger === null) return;
-    if (zeigerId(e) !== lenkZeiger) return;
+    if (!z || z.beendet) return;
+    const id = zeigerId(e);
     const rect = z.canvas.getBoundingClientRect();
     const x = (e.clientX !== undefined ? e.clientX : 0) - rect.left;
+    const y = (e.clientY !== undefined ? e.clientY : 0) - rect.top;
     const t = tRel();
-    /* Nach rechts aus dem Feld gewandert: die Kante gilt weiter, der Finger
-       bleibt der Lenkfinger. Loslassen tut man mit dem Finger, nicht mit
-       dem Verlassen der Fläche. */
-    const xr = Math.min(x, z.breite * PAD_ANTEIL);
-    z.lenkRohJetzt = rohAus(xr);
-    const wert = stellungAus(xr);
-    if (Math.abs(wert - z.lenkStellungJetzt) < 0.02) return;
-    z.lenkStellungJetzt = wert;
-    z.eingaben.push({ zeit: t, art: 'lenkStellung', wert: wert });
+    if (gasZeiger !== null && id === gasZeiger) { setzeHebel(hebelAus(y), t); return; }
+    if (lenkZeiger === null || id !== lenkZeiger) return;
+    if (!z.lauf || !z.lauf.gestartet) return;
+    setzeLenkung(x, y, t);
   }
 
   function haengeTipperAn() {
@@ -596,7 +652,8 @@ const rennen = (function () {
     if (t < T_STAGING && (!z.plan.burnoutVon || t < z.plan.burnoutVon)) zeichneVorstellung(g, b, h, t);
     if (t < 0) zeichneAmpel(g, b, h, t);
     if (!z.burnoutFertig && t >= z.plan.burnoutVon && t < z.plan.burnoutBis) zeichneBurnout(g, b, h, t);
-    zeichneSchieber(g, b, h, t);
+    zeichneJoystick(g, b, h, t);
+    zeichneHebel(g, b, h, t);
     zeichneMeldung(g, b, h);
     zeichneUhr(g, b, h, t);
   }
@@ -834,7 +891,9 @@ const rennen = (function () {
     /* ⚠️ Weit genug von der Ecke weg: mit rad 46 bei (b-62, h-58) hing der
        Ring halb außerhalb des Bildes. */
     const rad = Math.min(46, h * 0.14);
-    const cx = b - rad - 26, cy = h - rad - 24;
+    /* ⚠️ Nach links geschoben: in der Ecke haengt jetzt der Schalthebel. */
+    const hb = hebelBahn();
+    const cx = hb.x - hb.br / 2 - rad - 40, cy = h - rad - 26;
     const von = Math.PI * 0.75, bis = Math.PI * 2.25;
     const f = physik.fenster(l.auto, l.gang);
 
@@ -899,8 +958,9 @@ const rennen = (function () {
        soll — nicht mittig im Bild. Der Schieber liegt ganz links (bis 45 %
        der Breite); ein Pfeil in der Bildmitte, der nach rechts zeigt,
        schickte den Daumen auf die Gasfläche. */
-    const x = zeigt < 0 ? b * 0.1125 : b * 0.3375;
-    const y = h * 0.42;
+    const jo = joystick();
+    const x = jo.x + zeigt * (jo.r + 46);
+    const y = jo.y;
     const gr = Math.min(b * 0.085, h * 0.13);
     const blink = dringend === 1 ? (Math.floor(t * 8) % 2 === 0 ? 1 : 0.3) : 1;
 
@@ -908,8 +968,10 @@ const rennen = (function () {
     g.globalAlpha = blink * (dringend === 2 ? 0.95 : 0.75);
     /* Heller Schein über der Schieberhälfte, damit sie als Ziel lesbar wird */
     g.fillStyle = dringend === 2 ? 'rgba(224,83,63,0.16)' : 'rgba(245,165,36,0.12)';
-    const sb = bahn();
-    g.fillRect(zeigt < 0 ? 0 : b * PAD_ANTEIL / 2, sb.y - 26, b * PAD_ANTEIL / 2, h - (sb.y - 26));
+    const j = joystick();
+    g.beginPath();
+    g.arc(j.x, j.y, j.r + 16, zeigt < 0 ? Math.PI * 0.5 : -Math.PI * 0.5, zeigt < 0 ? Math.PI * 1.5 : Math.PI * 0.5);
+    g.fill();
     g.fillStyle = dringend === 2 ? FARBEN.schlecht : FARBEN.akzent;
     g.beginPath();
     g.moveTo(x + zeigt * gr, y);
@@ -1036,69 +1098,102 @@ const rennen = (function () {
 
   /** Ganz dezent: wo ist links, wo ist rechts, wo ist Gas. */
   /**
-   * Der Lenk-Schieber, unten links über die halbe Breite.
+   * Der Joystick unten links.
    *
-   * ⚠️ ER IST IMMER SICHTBAR, nicht nur als Anfangshinweis. Vorher standen
-   * dort zwei gestrichelte Trennlinien und zwei Wörter, die nach einer halben
-   * Sekunde verblassten — man musste sich merken, wo die Felder liegen, und
-   * hatte während der Fahrt keine Rückmeldung, wie weit man gerade einschlägt.
+   * ⚠️ ER IST IMMER SICHTBAR und der Knopf sitzt unter dem Daumen, nicht auf
+   * der Auslenkung des Autos. Steht er woanders als der Finger, liest sich
+   * das als Lenkung, die nicht reagiert - genau daran ist der Balken davor
+   * gescheitert.
    */
-  function zeichneSchieber(g, b, h, t) {
-    const s = bahn();
-    const by = s.y, bh = s.hoch;
-    const mitte = s.mitte;
+  function zeichneJoystick(g, b, h, t) {
+    const j = joystick();
+    const kx = j.x + (z.joyX || 0) * j.r;
+    const ky = j.y + (z.joyY || 0) * j.r;
+    const wirkt = z.lauf ? physik.lenkAuslenkung(z.lauf) : 0;
+
+    g.save();
+
+    /* Grundplatte */
+    g.fillStyle = 'rgba(8,7,6,0.30)';
+    g.beginPath(); g.arc(j.x, j.y, j.r + 16, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.16)';
+    g.lineWidth = 2;
+    g.beginPath(); g.arc(j.x, j.y, j.r, 0, Math.PI * 2); g.stroke();
+
+    /* Waagerechte Fuehrung - links und rechts ist, worauf es ankommt */
+    g.strokeStyle = 'rgba(255,255,255,0.14)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(j.x - j.r, j.y); g.lineTo(j.x + j.r, j.y);
+    g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.30)';
+    g.fillRect(j.x - 1, j.y - j.r - 4, 2, 8);
+
+    /* Knopf */
+    g.fillStyle = wirkt === 0 ? FARBEN.leise : FARBEN.akzent;
+    g.beginPath(); g.arc(kx, ky, 25, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(kx, ky, 25, 0, Math.PI * 2); g.stroke();
+
+    if (t < 1.4) {
+      g.textAlign = 'center';
+      g.fillStyle = FARBEN.text;
+      g.font = '700 13px -apple-system, "Segoe UI", Roboto, sans-serif';
+      g.fillText('LENKEN', j.x, j.y - j.r - 22);
+    }
+    g.textAlign = 'left';
+    g.restore();
+  }
+
+  /**
+   * Der Schalthebel rechts.
+   *
+   * Michel: "gas geben sollte nach oben sein, schalten einmal nach unten
+   * ziehen und wieder nach oben gehen." Genau das steht hier: oben ist Gas,
+   * unten ist ausgekuppelt, und der Weg zurueck nach oben legt den Gang ein.
+   */
+  function zeichneHebel(g, b, h, t) {
+    const s = hebelBahn();
+    const halb = s.br / 2;
+    const p = z.hebelP || 0;
+    const ky = s.unten - p * s.hoch;
     const faehrt = z.lauf && z.lauf.gestartet && !z.lauf.fertig;
 
     g.save();
 
-    /* Ein flaches Brett unter der Bahn — bewusst NICHT die ganze linke
-       Bildhälfte. `zone()` nimmt zwar jeden Finger dort an, aber das eigene
-       Auto fährt genau durch diese Ecke, sobald man voll nach links lenkt.
-       Ein großes Feld hätte den Wagen im entscheidenden Moment verdeckt. */
-    g.fillStyle = 'rgba(8,7,6,0.38)';
-    rundesRechteck(g, 0, s.y - 26, s.pad + 14, h - (s.y - 26), 14);
+    /* Kulisse */
+    g.fillStyle = 'rgba(8,7,6,0.42)';
+    rundesRechteck(g, s.x - halb - 8, s.oben - halb - 10, s.br + 16, s.hoch + s.br + 20, 16);
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.12)';
+    rundesRechteck(g, s.x - halb, s.oben - halb, s.br, s.hoch + s.br, halb);
     g.fill();
 
-    /* Die Bahn */
-    g.fillStyle = 'rgba(255,255,255,0.14)';
-    rundesRechteck(g, s.von - bh / 2, by, (s.bis - s.von) + bh, bh, bh / 2);
+    /* Oben gruen (Gas), unten grau (ausgekuppelt) */
+    g.fillStyle = 'rgba(76,175,110,0.22)';
+    rundesRechteck(g, s.x - halb, s.oben - halb, s.br, s.hoch * (1 - HEBEL_OBEN) + halb, halb);
     g.fill();
-    /* Totzone in der Mitte — hier lenkt nichts */
-    g.fillStyle = 'rgba(255,255,255,0.10)';
-    g.fillRect(mitte - s.halb * TOTZONE, by, s.halb * TOTZONE * 2, bh);
-    g.fillStyle = 'rgba(255,255,255,0.38)';
-    g.fillRect(mitte - 1, by - 6, 2, bh + 12);
 
-    /* ⚠️ Der Knopf sitzt auf der ROHEN Daumenstellung, nicht auf der
-       Auslenkung des Autos. Sonst stünde er in der Totzone und kurz nach dem
-       Loslassen sichtbar neben dem Finger — und genau das las sich wie eine
-       Lenkung, die nicht reagiert. */
-    const roh = z.lenkRohJetzt || 0;
-    const wirkt = z.lauf ? physik.lenkAuslenkung(z.lauf) : 0;
-    const kx = mitte + roh * s.halb;
-    const ky = by + bh / 2;
-    g.fillStyle = wirkt === 0 ? FARBEN.leise : FARBEN.akzent;
-    g.beginPath();
-    g.arc(kx, ky, 19, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 2;
-    g.beginPath(); g.arc(kx, ky, 19, 0, Math.PI * 2); g.stroke();
-
-    g.font = '700 15px -apple-system, "Segoe UI", Roboto, sans-serif';
+    g.font = '700 11px -apple-system, "Segoe UI", Roboto, sans-serif';
+    g.textAlign = 'center';
     g.fillStyle = FARBEN.leise;
-    g.textAlign = 'left';
-    g.fillText('◀', s.von - bh / 2, by + bh + 24);
-    g.textAlign = 'right';
-    g.fillText('▶', s.bis + bh / 2, by + bh + 24);
+    g.fillText('GAS', s.x, s.oben - halb - 16);
+    g.fillText(faehrt ? 'SCHALTEN' : 'HALTEN', s.x, s.unten + halb + 16);
 
-    /* Beschriftung nur am Anfang — danach spricht der Knopf für sich. */
-    if (t < 1.2) {
-      g.textAlign = 'center';
+    /* Der Knopf sitzt auf der Daumenhoehe */
+    g.fillStyle = z.hebelOben ? FARBEN.gut : FARBEN.akzent;
+    g.beginPath(); g.arc(s.x, ky, halb - 3, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(s.x, ky, halb - 3, 0, Math.PI * 2); g.stroke();
+    /* Griffrillen, damit man sieht, dass es ein Hebel ist */
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    g.fillRect(s.x - 12, ky - 5, 24, 2);
+    g.fillRect(s.x - 12, ky + 3, 24, 2);
+
+    if (t < 1.4) {
       g.fillStyle = FARBEN.text;
-      g.font = '700 13px -apple-system, "Segoe UI", Roboto, sans-serif';
-      g.fillText('LENKEN — Daumen hier ziehen', mitte, by - 14);
-      g.fillStyle = FARBEN.leise;
-      g.fillText(faehrt ? 'SCHALTEN' : 'GAS', b * 0.72, h - 26);
+      g.font = '700 12px -apple-system, "Segoe UI", Roboto, sans-serif';
+      g.fillText('HOCHZIEHEN = LOS', s.x - 96, s.oben - halb - 16);
     }
     g.textAlign = 'left';
     g.restore();
@@ -1150,5 +1245,9 @@ const rennen = (function () {
     /* Nur zum Nachmessen von außen (Konsole, Prüflauf): der laufende Wagen,
        die Ausbrecher und die Uhr. Wird vom Spiel selbst nicht benutzt. */
     stand: function () { return z ? { lauf: z.lauf, t: tRel(), waerme: z.waerme, phase: z.phase, plan: z.plan } : null; },
+    /* Die echte Geometrie der Bedienelemente. Der Pruefstand rechnet sie
+       NICHT nach - genau diese Doppelrechnung hat den Schieber kaputt
+       gemacht (gezeichnet 4,5-40,5 %, getippt 0-45 %). */
+    masze: function () { return z ? { joy: joystick(), hebel: hebelBahn(), padBis: z.breite * PAD_ANTEIL } : null; },
   };
 })();

@@ -151,18 +151,31 @@ function neueWelt(bilderProSekunde) {
   return welt;
 }
 
-/** Baut ein Zeigerereignis auf einer bestimmten Bildschirmspalte. */
-function zeiger(anteilX, breite) {
+/**
+ * Der RECHTE Daumen auf dem Schalthebel.
+ *
+ * ⚠️ Die Geometrie kommt aus `rennen.masze()`, sie wird hier NICHT
+ * nachgerechnet. Genau diese Doppelrechnung hat den Vorgaenger kaputt
+ * gemacht: gezeichnet wurde von 4,5 % bis 40,5 % der Breite, getippt von
+ * 0 % bis 45 %, und kein Zahlenwert war dabei falsch.
+ *
+ * `wo` ist 'oben' (Gas) oder 'unten' (ausgekuppelt). Losfahren heisst
+ * hochziehen, schalten heisst einmal runter und wieder hoch - deshalb faehrt
+ * ein Gangwechsel als pointerdown UNTEN + pointerup (der Hebel federt hoch).
+ */
+function hebelZeiger(mod, wo) {
+  const s = mod.masze().hebel;
   return {
-    pointerId: 1, clientX: anteilX * breite, clientY: 300,
+    pointerId: 1, clientX: s.x, clientY: wo === 'oben' ? s.oben : s.unten,
     preventDefault: function () {},
   };
 }
 
-/** Der LINKE Daumen — eigene Zeigerkennung, damit beide gleichzeitig liegen. */
-function lenkZeiger(richtung) {
+/** Der LINKE Daumen auf dem Joystick — eigene Zeigerkennung. */
+function lenkZeiger(mod, richtung) {
+  const j = mod.masze().joy;
   return {
-    pointerId: 2, clientX: (richtung < 0 ? 0.10 : 0.34) * 800, clientY: 300,
+    pointerId: 2, clientX: j.x + richtung * j.r, clientY: j.y,
     preventDefault: function () {},
   };
 }
@@ -225,8 +238,8 @@ function fahre(fahrer, opt) {
     if (burnout && fahrer.waerme !== null && fahrer.waerme !== undefined && !gestartet) {
       const vonT = st.plan.burnoutVon, bisT = st.plan.burnoutBis;
       if (jetztT >= vonT + 0.05 && jetztT < bisT) {
-        if (!haelt) { haelt = true; leinwand.__feuere('pointerdown', zeiger(0.7, 800)); }
-        else if (st.waerme >= fahrer.waerme) { haelt = false; welt.window.__feuere('pointerup', zeiger(0.7, 800)); }
+        if (!haelt) { haelt = true; leinwand.__feuere('pointerdown', hebelZeiger(rennen, 'unten')); }
+        else if (st.waerme >= fahrer.waerme) { haelt = false; welt.window.__feuere('pointerup', hebelZeiger(rennen, 'unten')); }
       }
     }
 
@@ -238,8 +251,8 @@ function fahre(fahrer, opt) {
       const ziel = fahrer.fruehstart !== undefined ? -fahrer.fruehstart : fahrer.reaktion;
       if (ziel !== null && ziel !== undefined && jetztT >= ziel) {
         gestartet = true;
-        leinwand.__feuere('pointerdown', zeiger(0.7, 800));
-        welt.window.__feuere('pointerup', zeiger(0.7, 800));
+        leinwand.__feuere('pointerdown', hebelZeiger(rennen, 'oben'));
+        welt.window.__feuere('pointerup', hebelZeiger(rennen, 'oben'));
       }
       continue;
     }
@@ -250,8 +263,8 @@ function fahre(fahrer, opt) {
       const f = physik.fenster(auto, l.gang);
       const ziel = fahrer.schaltZiel !== undefined ? fahrer.schaltZiel : (f.perfektAb + 1.0) / 2;
       if (physik.drehzahl(l) >= ziel) {
-        leinwand.__feuere('pointerdown', zeiger(0.7, 800));
-        welt.window.__feuere('pointerup', zeiger(0.7, 800));
+        leinwand.__feuere('pointerdown', hebelZeiger(rennen, 'unten'));
+        welt.window.__feuere('pointerup', hebelZeiger(rennen, 'unten'));
       }
     }
 
@@ -275,13 +288,13 @@ function fahre(fahrer, opt) {
       else if (zieht !== 0) halten = zieht > 0 ? -1 : 1;
 
       if (halten !== lenktGerade) {
-        if (lenktGerade !== 0) welt.window.__feuere('pointerup', lenkZeiger(lenktGerade));
-        if (halten !== 0) leinwand.__feuere('pointerdown', lenkZeiger(halten));
+        if (lenktGerade !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennen, lenktGerade));
+        if (halten !== 0) leinwand.__feuere('pointerdown', lenkZeiger(rennen, halten));
         lenktGerade = halten;
       }
     }
   }
-  if (lenktGerade !== 0) welt.window.__feuere('pointerup', lenkZeiger(lenktGerade));
+  if (lenktGerade !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennen, lenktGerade));
 
   return { ergebnis: ergebnis, gegner: gegnerErgebnis, gemeldet: gemeldet, bilder: wache, toene: welt.tonRuf };
 }
@@ -439,8 +452,8 @@ rennenMod.starte({
     if (!l) continue;
     if (l.reaktion === null && !gestartet && tt >= 0.2) {
       gestartet = true;
-      leinwand.__feuere('pointerdown', zeiger(0.7, 800));
-      welt.window.__feuere('pointerup', zeiger(0.7, 800));
+      leinwand.__feuere('pointerdown', hebelZeiger(rennenMod, 'oben'));
+      welt.window.__feuere('pointerup', hebelZeiger(rennenMod, 'oben'));
       continue;
     }
     if (!l.gestartet) continue;
@@ -448,8 +461,8 @@ rennenMod.starte({
     if (l.gang < a.gaenge.length - 1 && l.t >= l.leerlaufBis) {
       const f = physik.fenster(a, l.gang);
       if (physik.drehzahl(l) >= (f.perfektAb + 1) / 2) {
-        leinwand.__feuere('pointerdown', zeiger(0.7, 800));
-        welt.window.__feuere('pointerup', zeiger(0.7, 800));
+        leinwand.__feuere('pointerdown', hebelZeiger(rennenMod, 'unten'));
+        welt.window.__feuere('pointerup', hebelZeiger(rennenMod, 'unten'));
       }
     }
     let zieht = 0;
@@ -458,12 +471,12 @@ rennenMod.starte({
     if (Math.abs(l.versatz) > 0.08) halten = l.versatz > 0 ? -1 : 1;
     else if (zieht !== 0) halten = zieht > 0 ? -1 : 1;
     if (halten !== lenkt) {
-      if (lenkt !== 0) welt.window.__feuere('pointerup', lenkZeiger(lenkt));
-      if (halten !== 0) leinwand.__feuere('pointerdown', lenkZeiger(halten));
+      if (lenkt !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennenMod, lenkt));
+      if (halten !== 0) leinwand.__feuere('pointerdown', lenkZeiger(rennenMod, halten));
       lenkt = halten;
     }
   }
-  if (lenkt !== 0) welt.window.__feuere('pointerup', lenkZeiger(lenkt));
+  if (lenkt !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennenMod, lenkt));
 }
 pruefe('gegen einen Gegner über das Netz kommt ein Ergebnis heraus', !!fertigErg && typeof fertigErg.gesamt === 'number', z3(fertigErg && fertigErg.gesamt) + ' s');
 pruefe('der eigene Stand wird regelmäßig gemeldet', meldungen.length > 60, meldungen.length + ' Meldungen');
@@ -509,8 +522,8 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
       if (!l) continue;
       if (l.reaktion === null && !gestartet && tt >= 0.18) {
         gestartet = true;
-        lw.__feuere('pointerdown', zeiger(0.7, 800));
-        w.window.__feuere('pointerup', zeiger(0.7, 800));
+        lw.__feuere('pointerdown', hebelZeiger(rm, 'oben'));
+        w.window.__feuere('pointerup', hebelZeiger(rm, 'oben'));
         continue;
       }
       if (!l.gestartet) continue;
@@ -518,8 +531,8 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
       if (l.gang < a.gaenge.length - 1 && l.t >= l.leerlaufBis) {
         const f = physik.fenster(a, l.gang);
         if (physik.drehzahl(l) >= (f.perfektAb + 1) / 2) {
-          lw.__feuere('pointerdown', zeiger(0.7, 800));
-          w.window.__feuere('pointerup', zeiger(0.7, 800));
+          lw.__feuere('pointerdown', hebelZeiger(rm, 'unten'));
+          w.window.__feuere('pointerup', hebelZeiger(rm, 'unten'));
         }
       }
       let zieht = 0;
@@ -528,12 +541,12 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
       if (Math.abs(l.versatz) > 0.08) halten = l.versatz > 0 ? -1 : 1;
       else if (zieht !== 0) halten = zieht > 0 ? -1 : 1;
       if (halten !== lenkt) {
-        if (lenkt !== 0) w.window.__feuere('pointerup', lenkZeiger(lenkt));
-        if (halten !== 0) lw.__feuere('pointerdown', lenkZeiger(halten));
+        if (lenkt !== 0) w.window.__feuere('pointerup', lenkZeiger(rm, lenkt));
+        if (halten !== 0) lw.__feuere('pointerdown', lenkZeiger(rm, halten));
         lenkt = halten;
       }
     }
-    if (lenkt !== 0) { w.window.__feuere('pointerup', lenkZeiger(lenkt)); lenkt = 0; }
+    if (lenkt !== 0) { w.window.__feuere('pointerup', lenkZeiger(rm, lenkt)); lenkt = 0; }
     zeiten.push(erg ? erg.gesamt : null);
   }
   console.log('  Lauf 1: ' + z3(zeiten[0]) + ' s   Lauf 2: ' + z3(zeiten[1]) + ' s');
@@ -544,18 +557,18 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
 }
 
 /* --------------------------------------------------------------------------
-   10. Der Schieber: gezeichnet und getippt muessen DASSELBE sein
+   10. Joystick und Schalthebel: Bild und Finger an derselben Stelle
    --------------------------------------------------------------------------
-   Genau hier lag der Fehler, der Michel zum zweiten Mal melden liess, das
-   Lenken gehe nicht. Gezeichnet wurde eine Bahn von 4,5 % bis 40,5 % der
-   Bildbreite, gerechnet aber von 0 % bis 45 %. Wer den Daumen ans sichtbare
-   Ende legte, bekam 78 % statt vollem Ausschlag, und der Knopf stand
-   sichtbar neben dem Finger. Kein einziger Zahlenwert war falsch - die
-   beiden Rechnungen waren nur nicht dieselbe.
+   Der Vorgaenger, ein Balken, zeichnete seine Bahn von 4,5 % bis 40,5 % der
+   Bildbreite und rechnete von 0 % bis 45 %. Wer den Daumen ans sichtbare Ende
+   legte, bekam 78 % statt vollem Ausschlag, und der Knopf stand neben dem
+   Finger. Kein Zahlenwert war falsch - die beiden Rechnungen waren nur nicht
+   dieselbe. Seitdem liefert `rennen.masze()` die Geometrie, und dieser
+   Abschnitt tippt ausschliesslich auf gemeldete Koordinaten.
    -------------------------------------------------------------------------- */
 {
   console.log('');
-  console.log('=== 10. Der Schieber: Bild und Finger an derselben Stelle ===');
+  console.log('=== 10. Joystick und Schalthebel ===');
   console.log('');
 
   const S_BREITE = 800, S_HOEHE = 400;
@@ -570,55 +583,101 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
     gegner: null, jetzt: sw.jetzt, aufPosition: null, fertig: function () {},
   });
 
+  const M = sRennen.masze();
+  const J = M.joy, HB = M.hebel;
+
+  /* --- Der Hebel --- */
   while (sw.jetzt() < sGruen + 60) sw.einBild();
-  slw.__feuere('pointerdown', zeiger(0.7, S_BREITE));
-  sw.window.__feuere('pointerup', zeiger(0.7, S_BREITE));
+  slw.__feuere('pointerdown', hebelZeiger(sRennen, 'oben'));
+  sw.window.__feuere('pointerup', hebelZeiger(sRennen, 'oben'));
+  sw.einBild();
+  pruefe('Hochziehen bei Gruen faehrt los',
+    !!sRennen.stand().lauf && sRennen.stand().lauf.reaktion !== null,
+    'Reaktion ' + z3(sRennen.stand().lauf ? sRennen.stand().lauf.reaktion : null) + ' s');
+
+  function ruhe(sek) { const bis = sw.jetzt() + (sek || 0.4) * 1000; while (sw.jetzt() < bis) sw.einBild(); }
+
+  ruhe(1.2);
+  const gangVor = sRennen.stand().lauf.gang;
+  slw.__feuere('pointerdown', hebelZeiger(sRennen, 'unten'));
+  sw.einBild();
+  pruefe('herunterziehen legt EINEN Gang ein',
+    sRennen.stand().lauf.gang === gangVor + 1,
+    'Gang ' + (gangVor + 1) + ' -> ' + (sRennen.stand().lauf.gang + 1));
+  pruefe('unten gibt es keinen Vortrieb', sRennen.stand().lauf.gasAn === false);
+  const gangUnten = sRennen.stand().lauf.gang;
+  sw.window.__feuere('pointerup', hebelZeiger(sRennen, 'unten'));
+  sw.einBild();
+  pruefe('der Weg zurueck nach oben schaltet nicht noch einmal',
+    sRennen.stand().lauf.gang === gangUnten, 'Gang ' + (sRennen.stand().lauf.gang + 1));
+  pruefe('oben liegt wieder Gas an', sRennen.stand().lauf.gasAn === true);
+
+  /* Ein Daumen, der auf der Schwelle zittert, darf nicht durchschalten. */
+  const gangJetzt = sRennen.stand().lauf.gang;
+  const schwelleY = HB.unten - HB.hoch * 0.46;
+  for (let i = 0; i < 6; i++) {
+    slw.__feuere('pointerdown', { pointerId: 1, clientX: HB.x, clientY: schwelleY + (i % 2 ? 6 : -6), preventDefault: function () {} });
+    sw.einBild();
+  }
+  pruefe('Zittern auf der Schwelle schaltet nicht durch',
+    sRennen.stand().lauf.gang === gangJetzt,
+    'Gang ' + (sRennen.stand().lauf.gang + 1));
+  sw.window.__feuere('pointerup', { pointerId: 1, clientX: HB.x, clientY: schwelleY, preventDefault: function () {} });
   sw.einBild();
 
-  const PAD = S_BREITE * 0.45;        // dieselbe Zahl wie PAD_ANTEIL in rennen.js
-  const LUFT = PAD * 0.075;           // BAHN_LUFT
-  /* MIN_LENK laesst einen kurzen Tipper 0,2 s nachwirken - ohne diese Pause
-     misst die naechste Probe noch den Nachlauf der vorigen. */
-  function ruhe() { const bis = sw.jetzt() + 400; while (sw.jetzt() < bis) sw.einBild(); }
-
+  /* --- Der Joystick --- */
   function daumen(x) {
-    ruhe();
-    slw.__feuere('pointerdown', { pointerId: 2, clientX: x, clientY: 300, preventDefault: function () {} });
+    ruhe(0.4);
+    slw.__feuere('pointerdown', { pointerId: 2, clientX: x, clientY: J.y, preventDefault: function () {} });
     sw.einBild();
     const st = sRennen.stand();
-    const k = slw.getContext().boegen.filter(function (b) { return b.r === 19; });
+    const k = slw.getContext().boegen.filter(function (bo) { return bo.r === 25; });
     const knopf = k.length ? k[k.length - 1] : null;
     const aus = st && st.lauf ? physik.lenkAuslenkung(st.lauf) : 0;
-    sw.window.__feuere('pointerup', { pointerId: 2, clientX: x, clientY: 300, preventDefault: function () {} });
+    sw.window.__feuere('pointerup', { pointerId: 2, clientX: x, clientY: J.y, preventDefault: function () {} });
     sw.einBild();
     return { aus: aus, knopf: knopf };
   }
 
-  const sLinks = daumen(LUFT);
-  pruefe('Daumen am linken Ende der gezeichneten Bahn = voll links',
-    Math.abs(sLinks.aus + 1) < 0.001, 'Auslenkung ' + sLinks.aus.toFixed(3));
+  const links = daumen(J.x - J.r);
+  pruefe('Daumen am linken Rand des Joysticks = voll links',
+    Math.abs(links.aus + 1) < 0.001, 'Auslenkung ' + links.aus.toFixed(3));
 
-  const sRechts = daumen(PAD - LUFT);
-  pruefe('Daumen am rechten Ende der gezeichneten Bahn = voll rechts',
-    Math.abs(sRechts.aus - 1) < 0.001, 'Auslenkung ' + sRechts.aus.toFixed(3));
+  const rechts = daumen(J.x + J.r);
+  pruefe('Daumen am rechten Rand des Joysticks = voll rechts',
+    Math.abs(rechts.aus - 1) < 0.001, 'Auslenkung ' + rechts.aus.toFixed(3));
 
-  const sMitte = daumen(PAD / 2);
-  pruefe('Daumen in der Mitte lenkt nicht', sMitte.aus === 0, 'Auslenkung ' + sMitte.aus.toFixed(3));
+  const mitte = daumen(J.x);
+  pruefe('Daumen in der Mitte lenkt nicht', mitte.aus === 0, 'Auslenkung ' + mitte.aus.toFixed(3));
 
-  let sVersatz = 0, sAlle = true;
-  for (const x of [LUFT, PAD * 0.3, PAD / 2, PAD * 0.7, PAD - LUFT]) {
+  const halb = daumen(J.x - J.r * 0.5);
+  pruefe('halb ausgelenkt ist auch halbe Lenkung',
+    halb.aus < -0.35 && halb.aus > -0.60, 'Auslenkung ' + halb.aus.toFixed(3));
+
+  let versatz = 0, alleDa = true;
+  for (const x of [J.x - J.r, J.x - J.r * 0.4, J.x, J.x + J.r * 0.6, J.x + J.r]) {
     const r = daumen(x);
-    if (!r.knopf) { sAlle = false; continue; }
-    sVersatz = Math.max(sVersatz, Math.abs(r.knopf.x - x));
+    if (!r.knopf) { alleDa = false; continue; }
+    versatz = Math.max(versatz, Math.abs(r.knopf.x - x));
   }
-  pruefe('der Knopf wird ueberhaupt gezeichnet', sAlle);
-  pruefe('der Knopf liegt unter dem Daumen', sVersatz < 1.5,
-    'groesster Abstand ' + sVersatz.toFixed(2) + ' px');
+  pruefe('der Knopf wird ueberhaupt gezeichnet', alleDa);
+  pruefe('der Knopf sitzt unter dem Daumen', versatz < 1.5,
+    'groesster Abstand ' + versatz.toFixed(2) + ' px');
 
-  const sUnten = daumen(PAD * 0.3);
-  pruefe('die Bahn haelt Abstand zur unteren Bildkante',
-    !!sUnten.knopf && S_HOEHE - sUnten.knopf.y >= 55,
-    sUnten.knopf ? Math.round(S_HOEHE - sUnten.knopf.y) + ' px ueber der Kante' : 'kein Knopf');
+  /* Kein Bedienelement an der unteren Bildkante: dort liegen auf dem Handy
+     die Browserleiste und der Wisch-nach-Hause-Streifen. */
+  pruefe('der Joystick haelt Abstand zur unteren Bildkante',
+    S_HOEHE - (J.y + J.r) >= 25, Math.round(S_HOEHE - (J.y + J.r)) + ' px');
+  pruefe('der Hebel haelt Abstand zur unteren Bildkante',
+    S_HOEHE - HB.unten >= 25, Math.round(S_HOEHE - HB.unten) + ' px');
+  /* ⚠️ Auch die Beschriftung UNTER dem Hebel muss ins Bild passen. Bei
+     unten = h-34 stand "SCHALTEN" 11 px ausserhalb und war unsichtbar. */
+  pruefe('die Beschriftung unter dem Hebel bleibt im Bild',
+    HB.unten + HB.br / 2 + 16 <= S_HOEHE - 4,
+    Math.round(S_HOEHE - (HB.unten + HB.br / 2 + 16)) + ' px Luft');
+  pruefe('Joystick und Hebel ueberlappen sich nicht',
+    J.x + J.r + 16 < HB.x - HB.br / 2,
+    'Luecke ' + Math.round((HB.x - HB.br / 2) - (J.x + J.r + 16)) + ' px');
 
   sRennen.stopp();
 }
