@@ -35,9 +35,9 @@ ohne Fenster laufen — Aufruf jeweils aus `viertelmeile/`:
 
 | Aufruf | Was geprüft wird |
 |---|---|
-| `node pflege/pruefe-fahrt.js` | Fahrphysik: Zeiten je Auto, Bot-Stufen, fester Rechentakt, Frühstart, Burnout, was ein Fehler kostet |
+| `node pflege/pruefe-fahrt.js` | Fahrphysik: Zeiten je Auto, Bot-Stufen, fester Rechentakt, Frühstart, Burnout, der Schalthebel, was ein Fehler kostet |
 | `node pflege/pruefe-turnier.js` | Paarungen und Tabelle für Liga und K.-o., 2 bis 20 Fahrende |
-| `node pflege/pruefe-rennen.js` | Das Rennbild selbst: Zeitplan, Tipper, Abbruchbedingungen — mit Attrappen für Zeichenfläche und Uhr |
+| `node pflege/pruefe-rennen.js` | Das Rennbild selbst: Zeitplan, Tipper, Abbruchbedingungen, Hebelgeometrie und das rein optische Schlingern — mit Attrappen für Zeichenfläche und Uhr |
 | `node pflege/pruefe-turnierlauf.js` | Ein ganzes Turnier über den echten `game-service.js`, mehrere Geräte auf einem Datenbaum |
 
 Die Kurse des Depot-Duells werden über die Skripte in `depot-duell/pflege/`
