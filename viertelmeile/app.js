@@ -31,7 +31,7 @@ const FUNKTIONEN = [
       'Burnout: vor der Ampel den Hebel nach unten ziehen und halten, im grünen Bereich wieder hochziehen — dann greifen die Reifen beim Start.',
       'Start: drei gelbe Lichter im festen Takt, dann grün. Bei Grün den Hebel nach oben. Die Reaktionszeit zählt voll zur Endzeit; wer vor Grün hochzieht, hat verloren.',
       'Schalten: einmal nach unten ziehen und wieder nach oben. Der Gang geht rein, sobald der Hebel unten ankommt — dort zielt man auf den grünen Bereich am Tacho.',
-      'Solange der Hebel unten steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit; ein flinker Zug kostet fast nichts.',
+      'Solange der Hebel unten steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit; ein flinker Zug kostet fast nichts. Ein kurzes Stück zurück reicht fürs Gas, und nach einer knappen halben Sekunde federt der Hebel von allein hoch.',
       'Spur halten: zwei- bis dreimal je Rennen zieht das Auto zur Seite, ein Pfeil warnt vorher und zeigt, wohin der Daumen soll.',
       'Der Joystick wirkt unmittelbar: wo der Daumen liegt, dahin lenkt das Auto — außen voll, in der Mitte geradeaus, dazwischen anteilig. Wer gar nicht gegenlenkt, berührt die Linie und verliert.',
       'Zu weit zu lenken kostet nie das Rennen: die eigene Lenkung schiebt niemanden über die gegenüberliegende Linie.',
@@ -77,6 +77,20 @@ const FUNKTIONEN = [
 ];
 
 const CHANGELOG = [
+  {
+    version: '1.5',
+    groups: [
+      {
+        title: 'Nach dem Schalten liegt wieder Gas an',
+        items: [
+          'Der Hebel musste bis auf 62 Prozent der Bahn zurueck, sonst galt er weiter als ausgekuppelt. Wer den Daumen nach dem letzten Gang irgendwo in der Mitte liegen liess, rollte ohne Gas ins Ziel - und weil es nach dem letzten Gang keinen Grund mehr gibt, den Hebel anzufassen, fiel es genau dort auf.',
+          'Jetzt reicht ein kurzes Stueck zurueck: tief ziehen zum Schalten, aber schon ab 38 Prozent liegt wieder Gas an.',
+          'Dazu eine Rueckholfeder: laenger als eine knappe halbe Sekunde bleibt der Hebel im Rennen nie unten. Die Zehntel bis dahin zahlt man, aber niemand rollt mehr versehentlich die halbe Bahn ohne Gas.',
+          'Und man sieht es jetzt: solange kein Gas ankommt, ist der Knopf rot und daneben steht "KEIN GAS".',
+        ],
+      },
+    ],
+  },
   {
     version: '1.4',
     groups: [

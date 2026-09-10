@@ -400,7 +400,8 @@ const bildschirme = (function () {
     h += '<div class="hinweis info" style="margin:8px 0"><b>Einmal nach unten ziehen und wieder nach oben.</b><br>Der Gang wird eingelegt, sobald der Hebel <b>unten ankommt</b> — auf diesen Moment zielst du.</div>';
     h += '<p>Links neben dem Hebel ist der Tacho. Die Nadel klettert. Ganz oben ist der <b>grüne Bereich</b> — dort <b>runterziehen</b>.</p>';
     h += '<p class="leise">Zu früh: das Auto zieht schlecht weiter. Zu spät: der Motor kreischt im Begrenzer. Der grüne Bereich wird mit jedem Gang <b>schmaler</b>, ein ganz knapper Treffer gibt einen kleinen Extra-Schub.</p>';
-    h += '<p class="warn">Solange der Hebel <b>unten</b> steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit — gemessen zwei Zehntel, wenn man sich eine Drittelsekunde Zeit lässt. Also zügig zurück nach oben.</p>';
+    h += '<p class="warn">Solange der Hebel <b>unten</b> steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit — gemessen zwei Zehntel, wenn man sich eine Drittelsekunde Zeit lässt. Also zügig zurück.</p>';
+    h += '<p class="leise">Ganz nach oben musst du dabei nicht: <b>ein kurzes Stück zurück reicht</b>, dann liegt wieder Gas an. Und falls du den Hebel unten vergisst, federt er nach einer knappen halben Sekunde von allein hoch. Solange kein Gas ankommt, wird der Knopf <b>rot</b> und daneben steht „KEIN GAS".</p>';
     h += '<p class="leise">Der Motorton steigt mit der Drehzahl. Wer auf den Ton hört, muss nicht auf den Tacho schauen.</p></div>';
 
     h += '<div class="karte"><h3>4. Lenken</h3>';

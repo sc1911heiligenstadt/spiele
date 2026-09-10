@@ -106,6 +106,7 @@ const rennen = (function () {
       joyY: 0,
       hebelP: 0,
       hebelOben: false,
+      hebelUntenSeit: -1,
     };
 
     /* Der Bot wird komplett vorausgerechnet — sein ganzer Lauf steht schon
@@ -160,8 +161,21 @@ const rennen = (function () {
 
   const PAD_ANTEIL = 0.45;      // links vom Daumen: der Joystick. Rechts: der Hebel.
   const TOT_JOY = 0.06;         // ganz kleine Wackler zaehlen nicht
-  const HEBEL_OBEN = 0.62;      // ab hier gilt der Hebel als oben (Gas)
-  const HEBEL_UNTEN = 0.30;     // darunter als unten (ausgekuppelt)
+  /* ⚠️ TIEF ZIEHEN, ABER LEICHT ZURUECK. Michel: "vom 2ten in den 3ten
+     verliert er massiv Geschwindigkeit, weil er kein Gas nimmt." Ursache
+     waren zwei zu hohe Schwellen: einmal unten, musste der Daumen wieder bis
+     auf 62 % der Bahn hoch, sonst blieb der Hebel ausgekuppelt. Ein Daumen,
+     der nach dem letzten Gang irgendwo in der Mitte liegen bleibt, rollte
+     damit ohne Gas ins Ziel — und weil es nach dem letzten Gang keinen Grund
+     mehr gibt, den Hebel anzufassen, fiel es genau dort auf.
+     Jetzt: tief ziehen zum Schalten, aber schon ein kurzes Stueck zurueck
+     bringt das Gas wieder. */
+  const HEBEL_OBEN = 0.38;      // ab hier gilt der Hebel als oben (Gas)
+  const HEBEL_UNTEN = 0.22;     // darunter als unten (ausgekuppelt)
+  /* ⚠️ Und eine Rueckholfeder: laenger als das bleibt der Hebel im Rennen
+     nie unten. Die Zehntel bis dahin zahlt man, aber niemand rollt mehr
+     versehentlich die halbe Bahn ohne Gas. */
+  const HEBEL_ZURUECK = 0.45;   // Sekunden, dann federt er von allein hoch
 
   function zone(x) { return x < z.breite * PAD_ANTEIL ? 'lenk' : 'gas'; }
 
@@ -276,7 +290,12 @@ const rennen = (function () {
     }
 
     if (!wechsel) return;
-    if (!obenNeu) { z.eingaben.push({ zeit: t, art: 'hebel', oben: false }); return; }
+    if (!obenNeu) {
+      z.hebelUntenSeit = t;
+      z.eingaben.push({ zeit: t, art: 'hebel', oben: false });
+      return;
+    }
+    z.hebelUntenSeit = -1;
 
     if (!z.lauf) return;
     if (z.lauf.reaktion === null) {
@@ -458,6 +477,17 @@ const rennen = (function () {
       if (t >= T_GELB[i] && z.gelbGespielt < i) { z.gelbGespielt = i; ton.piep('gelb'); }
     }
     if (t >= 0 && !z.gruenGespielt) { z.gruenGespielt = true; ton.piep('gruen'); ton.vibriere(70); }
+
+    /* --- Rueckholfeder am Hebel ---
+       Wer ihn unten vergisst, faehrt ohne Gas. Nach HEBEL_ZURUECK federt er
+       selbst hoch; die Zehntel bis dahin sind schon bezahlt. */
+    if (z.lauf && z.lauf.reaktion !== null && !z.hebelOben && z.hebelUntenSeit >= 0
+        && t - z.hebelUntenSeit >= HEBEL_ZURUECK) {
+      z.hebelOben = true;
+      z.hebelUntenSeit = -1;
+      z.hebelP = 1;
+      z.eingaben.push({ zeit: t, art: 'hebel', oben: true });
+    }
 
     /* --- Fahrt --- */
     if (z.lauf && t > 0) {
@@ -1181,7 +1211,9 @@ const rennen = (function () {
     g.fillText(faehrt ? 'SCHALTEN' : 'HALTEN', s.x, s.unten + halb + 16);
 
     /* Der Knopf sitzt auf der Daumenhoehe */
-    g.fillStyle = z.hebelOben ? FARBEN.gut : FARBEN.akzent;
+    const faehrtSchon = z.lauf && z.lauf.reaktion !== null && !z.lauf.fertig;
+    const ohneGas = faehrtSchon && !z.hebelOben;
+    g.fillStyle = z.hebelOben ? FARBEN.gut : (ohneGas ? FARBEN.schlecht : FARBEN.akzent);
     g.beginPath(); g.arc(s.x, ky, halb - 3, 0, Math.PI * 2); g.fill();
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 2;
     g.beginPath(); g.arc(s.x, ky, halb - 3, 0, Math.PI * 2); g.stroke();
@@ -1190,7 +1222,11 @@ const rennen = (function () {
     g.fillRect(s.x - 12, ky - 5, 24, 2);
     g.fillRect(s.x - 12, ky + 3, 24, 2);
 
-    if (t < 1.4) {
+    if (ohneGas) {
+      g.fillStyle = FARBEN.schlecht;
+      g.font = '800 13px -apple-system, "Segoe UI", Roboto, sans-serif';
+      g.fillText('KEIN GAS', s.x - 78, ky + 5);
+    } else if (t < 1.4) {
       g.fillStyle = FARBEN.text;
       g.font = '700 12px -apple-system, "Segoe UI", Roboto, sans-serif';
       g.fillText('HOCHZIEHEN = LOS', s.x - 96, s.oben - halb - 16);

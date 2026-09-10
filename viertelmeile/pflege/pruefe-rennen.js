@@ -595,7 +595,33 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
     !!sRennen.stand().lauf && sRennen.stand().lauf.reaktion !== null,
     'Reaktion ' + z3(sRennen.stand().lauf ? sRennen.stand().lauf.reaktion : null) + ' s');
 
-  function ruhe(sek) { const bis = sw.jetzt() + (sek || 0.4) * 1000; while (sw.jetzt() < bis) sw.einBild(); }
+  /* ⚠️ Die Viertelmeile ist nach gut zehn Sekunden vorbei. Dieser Abschnitt
+     laesst zwischen den Proben so viel Zeit verstreichen, dass das Rennen
+     mittendrin ins Ziel faellt - danach gibt `stand()` null zurueck und die
+     folgenden Proben messen einen Wagen, den es nicht mehr gibt. Deshalb vor
+     jeder Probe pruefen, ob ueberhaupt noch gefahren wird. */
+  function sorgeFuerLauf() {
+    const st = sRennen.stand();
+    if (st && st.lauf && st.lauf.reaktion !== null && !st.lauf.fertig && !st.lauf.aus) return;
+    sRennen.stopp();
+    const g = sw.uhr + sRennen.vorlaufMs(false);
+    sRennen.starte({
+      canvas: slw, auto: sAuto, saat: 4242, burnout: false, gruenZeit: g,
+      meinName: 'Du', meinLack: 'rot', gegnerName: 'Uhr', gegnerLack: 'weiss',
+      gegner: null, jetzt: sw.jetzt, aufPosition: null, fertig: function () {},
+    });
+    while (sw.jetzt() < g + 60) sw.einBild();
+    slw.__feuere('pointerdown', hebelZeiger(sRennen, 'oben'));
+    sw.window.__feuere('pointerup', hebelZeiger(sRennen, 'oben'));
+    sw.einBild();
+  }
+
+  function ruhe(sek) {
+    sorgeFuerLauf();
+    const bis = sw.jetzt() + (sek || 0.4) * 1000;
+    while (sw.jetzt() < bis) sw.einBild();
+    sorgeFuerLauf();
+  }
 
   ruhe(1.2);
   const gangVor = sRennen.stand().lauf.gang;
@@ -624,6 +650,44 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
     'Gang ' + (sRennen.stand().lauf.gang + 1));
   sw.window.__feuere('pointerup', { pointerId: 1, clientX: HB.x, clientY: schwelleY, preventDefault: function () {} });
   sw.einBild();
+
+  /* --- Das Gas darf nach dem Schalten nicht wegbleiben ---------------------
+     Michel nach dem ersten Hebel-Entwurf: "vom 2ten in den 3ten verliert er
+     massiv Geschwindigkeit, weil er kein Gas nimmt." Der Daumen kam nach dem
+     Zug nicht weit genug hoch, der Hebel galt weiter als ausgekuppelt - und
+     nach dem LETZTEN Gang gibt es keinen Grund mehr, ihn anzufassen, also
+     rollte man ohne Gas ins Ziel. Kein Pruefsatz hat das gesehen: alle haben
+     brav bis ganz nach oben getippt.
+     -------------------------------------------------------------------- */
+  {
+    ruhe(0.6);
+    const mitteY = HB.unten - HB.hoch * 0.5;
+    slw.__feuere('pointerdown', hebelZeiger(sRennen, 'unten'));
+    sw.einBild();
+    pruefe('unten liegt kein Gas an', sRennen.stand().lauf.gasAn === false);
+    /* ⚠️ pointermove haengt am FENSTER, nicht an der Leinwand - die traegt
+       nur pointerdown. Auf der Leinwand gefeuert passiert schlicht nichts. */
+    sw.window.__feuere('pointermove', { pointerId: 1, clientX: HB.x, clientY: mitteY, preventDefault: function () {} });
+    sw.einBild();
+    pruefe('Daumen bis zur Bahnmitte zurueck reicht fuers Gas',
+      sRennen.stand().lauf.gasAn === true);
+    sw.window.__feuere('pointerup', { pointerId: 1, clientX: HB.x, clientY: mitteY, preventDefault: function () {} });
+    sw.einBild();
+  }
+
+  {
+    ruhe(0.6);
+    /* Daumen bleibt unten liegen und wird vergessen */
+    slw.__feuere('pointerdown', hebelZeiger(sRennen, 'unten'));
+    sw.einBild();
+    pruefe('vergessener Hebel ist erst einmal ohne Gas', sRennen.stand().lauf.gasAn === false);
+    const bis = sw.jetzt() + 700;
+    while (sw.jetzt() < bis && sRennen.laeuft()) sw.einBild();
+    pruefe('nach einer knappen halben Sekunde federt er von allein hoch',
+      sRennen.stand().lauf.gasAn === true);
+    sw.window.__feuere('pointerup', hebelZeiger(sRennen, 'unten'));
+    sw.einBild();
+  }
 
   /* --- Der Joystick --- */
   function daumen(x) {
@@ -680,6 +744,85 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
     'Luecke ' + Math.round((HB.x - HB.br / 2) - (J.x + J.r + 16)) + ' px');
 
   sRennen.stopp();
+
+  /* --- Und dasselbe ueber ein GANZES Rennen --------------------------------
+     Michels Meldung hiess "vom 2ten in den 3ten verliert er massiv
+     Geschwindigkeit". Sie ist erst am Ende sichtbar, weil es nach dem letzten
+     Gang keinen Grund mehr gibt, den Hebel anzufassen. Eine Einzelprobe am
+     stehenden Wagen haette das nie gezeigt.
+     ---------------------------------------------------------------------- */
+  {
+    function ganzesRennen(zurueckAnteil) {
+      const w2 = neueWelt(60);
+      const r2 = ladeRennen(w2);
+      const lw2 = leinwandAttrappe(S_BREITE, S_HOEHE);
+      const g2 = w2.uhr + r2.vorlaufMs(false);
+      let erg = null;
+      r2.starte({
+        canvas: lw2, auto: sAuto, saat: 4242, burnout: false, gruenZeit: g2,
+        meinName: 'Du', meinLack: 'rot', gegnerName: 'Uhr', gegnerLack: 'weiss',
+        gegner: null, jetzt: w2.jetzt, aufPosition: null,
+        fertig: function (e) { erg = e; },
+      });
+      const hb = r2.masze().hebel;
+      const jo = r2.masze().joy;
+      const zurueckY = hb.unten - hb.hoch * zurueckAnteil;
+      let los = false, untenSeit = -1, wache = 0, lenkt = 0;
+      while (!erg && wache++ < 4000) {
+        w2.einBild();
+        const st = r2.stand();
+        if (!st) break;
+        if (!los && st.lauf && st.t >= 0) {
+          los = true;
+          lw2.__feuere('pointerdown', { pointerId: 1, clientX: hb.x, clientY: hb.oben, preventDefault: function () {} });
+          continue;
+        }
+        const l = st.lauf;
+        if (!l || !l.gestartet) continue;
+        if (untenSeit >= 0) {
+          if (l.t - untenSeit >= 0.12) {
+            /* Daumen kommt NUR bis `zurueckAnteil` zurueck, nicht ganz hoch */
+            w2.window.__feuere('pointermove', { pointerId: 1, clientX: hb.x, clientY: zurueckY, preventDefault: function () {} });
+            untenSeit = -1;
+          }
+          continue;
+        }
+        if (l.gang < sAuto.gaenge.length - 1 && l.t >= l.leerlaufBis) {
+          const f = physik.fenster(sAuto, l.gang);
+          if (physik.drehzahl(l) >= (f.perfektAb + 1) / 2) {
+            w2.window.__feuere('pointermove', { pointerId: 1, clientX: hb.x, clientY: hb.unten, preventDefault: function () {} });
+            untenSeit = l.t;
+          }
+        }
+
+        /* Der zweite Daumen haelt die Spur - sonst fliegt jede Fahrt raus und
+           die Messung sagt gar nichts ueber das Gas. */
+        let zieht = 0;
+        for (const zg of l.zuege) {
+          if (l.t >= zg.zeit + 0.30 && l.t < zg.zeit + physik.ZUG_DAUER) zieht += zg.richtung;
+        }
+        let will = 0;
+        if (Math.abs(l.versatz) > 0.06) will = l.versatz > 0 ? -1 : 1;
+        else if (zieht !== 0) will = zieht > 0 ? -1 : 1;
+        if (will !== lenkt) {
+          if (lenkt !== 0) w2.window.__feuere('pointerup', { pointerId: 2, clientX: jo.x + lenkt * jo.r, clientY: jo.y, preventDefault: function () {} });
+          if (will !== 0) lw2.__feuere('pointerdown', { pointerId: 2, clientX: jo.x + will * jo.r, clientY: jo.y, preventDefault: function () {} });
+          lenkt = will;
+        }
+      }
+      return erg;
+    }
+
+    const ganzHoch = ganzesRennen(1.0);
+    const nurMitte = ganzesRennen(0.5);
+    console.log('  Daumen ganz hoch     ' + z3(ganzHoch && ganzHoch.gesamt) + ' s');
+    console.log('  Daumen nur zur Mitte ' + z3(nurMitte && nurMitte.gesamt) + ' s');
+    pruefe('beide Fahrten kommen an', !!(ganzHoch && ganzHoch.gesamt) && !!(nurMitte && nurMitte.gesamt));
+    pruefe('wer den Daumen nur halb zurueckfuehrt, verliert kein Rennen',
+      !!(ganzHoch && nurMitte && ganzHoch.gesamt && nurMitte.gesamt)
+      && Math.abs(nurMitte.gesamt - ganzHoch.gesamt) < 0.15,
+      'Unterschied ' + z3(nurMitte && ganzHoch ? Math.abs(nurMitte.gesamt - ganzHoch.gesamt) : null) + ' s');
+  }
 }
 
 console.log('\n' + (fehler === 0 ? 'ALLES GRÜN' : fehler + ' FEHLER') + ' — ' + geprueft + ' Prüfungen\n');
