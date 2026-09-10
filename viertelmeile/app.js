@@ -76,6 +76,20 @@ const FUNKTIONEN = [
 
 const CHANGELOG = [
   {
+    version: '1.3',
+    groups: [
+      {
+        title: 'Der Schieber sitzt jetzt richtig',
+        items: [
+          'Der Knopf liegt genau unter dem Daumen. Vorher wurde die Bahn schmaler gezeichnet, als sie gerechnet wurde: wer den Daumen ans sichtbare Ende legte, bekam nur gut drei Viertel Ausschlag, und der Knopf stand sichtbar neben dem Finger.',
+          'Voller Einschlag ist jetzt am gezeichneten Ende der Bahn erreichbar, nicht erst am Bildschirmrand.',
+          'Die Bahn ist hoeher gerueckt und deutlich groesser. Ganz unten am Bildrand liegen auf dem Handy die Leiste des Browsers und der Streifen fuers Wischen nach Hause - ein Daumen, der dort liegt, kam im Spiel gar nicht an.',
+          'Das Brett unter der Bahn ist flach gehalten, damit es das eigene Auto nicht verdeckt, wenn man voll nach links lenkt.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.2',
     groups: [
       {

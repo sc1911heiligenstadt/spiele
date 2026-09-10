@@ -37,13 +37,19 @@ function z3(x) { return typeof x === 'number' ? x.toFixed(3) : '—'; }
 
 /** Ein 2D-Kontext, der alles annimmt und nichts tut. */
 function malAttrappe() {
-  const zaehler = { aufrufe: 0 };
+  const zaehler = { aufrufe: 0, boegen: [] };
   return new Proxy(zaehler, {
     get: function (ziel, name) {
       if (name === 'aufrufe') return ziel.aufrufe;
+      if (name === 'boegen') return ziel.boegen;
       if (name === 'canvas') return null;
       if (name === 'measureText') return function () { return { width: 40 }; };
       if (name === 'createLinearGradient') return function () { return { addColorStop: function () {} }; };
+      /* ⚠️ `arc` wird MITGESCHRIEBEN. Nur so lässt sich prüfen, ob der
+         gezeichnete Knopf da liegt, wo der Daumen liegt — der Fehler, der
+         die Lenkung unbrauchbar machte, war genau diese Lücke zwischen
+         Zeichnen und Rechnen und war an keinem Zahlenwert zu sehen. */
+      if (name === 'arc') return function (x, y, r) { ziel.aufrufe++; ziel.boegen.push({ x: x, y: y, r: r }); };
       return function () { ziel.aufrufe++; };
     },
     set: function () { return true; },
@@ -56,7 +62,8 @@ function leinwandAttrappe(breite, hoehe) {
     width: breite, height: hoehe,
     clientWidth: breite, clientHeight: hoehe,
     style: {},
-    getContext: function () { return malAttrappe(); },
+    __mal: null,
+    getContext: function () { if (!this.__mal) this.__mal = malAttrappe(); return this.__mal; },
     getBoundingClientRect: function () { return { left: 0, top: 0, width: breite, height: hoehe }; },
     addEventListener: function (art, fn) { (horcher[art] = horcher[art] || []).push(fn); },
     removeEventListener: function (art, fn) {
@@ -534,6 +541,86 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
   pruefe('dieselbe Saat und dieselben Tipper ergeben dieselbe Zeit',
     zeiten[0] !== null && zeiten[1] !== null && Math.abs(zeiten[0] - zeiten[1]) < 0.05,
     'Unterschied ' + z3(Math.abs(zeiten[0] - zeiten[1])) + ' s');
+}
+
+/* --------------------------------------------------------------------------
+   10. Der Schieber: gezeichnet und getippt muessen DASSELBE sein
+   --------------------------------------------------------------------------
+   Genau hier lag der Fehler, der Michel zum zweiten Mal melden liess, das
+   Lenken gehe nicht. Gezeichnet wurde eine Bahn von 4,5 % bis 40,5 % der
+   Bildbreite, gerechnet aber von 0 % bis 45 %. Wer den Daumen ans sichtbare
+   Ende legte, bekam 78 % statt vollem Ausschlag, und der Knopf stand
+   sichtbar neben dem Finger. Kein einziger Zahlenwert war falsch - die
+   beiden Rechnungen waren nur nicht dieselbe.
+   -------------------------------------------------------------------------- */
+{
+  console.log('');
+  console.log('=== 10. Der Schieber: Bild und Finger an derselben Stelle ===');
+  console.log('');
+
+  const S_BREITE = 800, S_HOEHE = 400;
+  const sw = neueWelt(60);
+  const sRennen = ladeRennen(sw);
+  const slw = leinwandAttrappe(S_BREITE, S_HOEHE);
+  const sAuto = autos.nachId('muscle');
+  const sGruen = sw.uhr + sRennen.vorlaufMs(false);
+  sRennen.starte({
+    canvas: slw, auto: sAuto, saat: 4242, burnout: false, gruenZeit: sGruen,
+    meinName: 'Du', meinLack: 'rot', gegnerName: 'Uhr', gegnerLack: 'weiss',
+    gegner: null, jetzt: sw.jetzt, aufPosition: null, fertig: function () {},
+  });
+
+  while (sw.jetzt() < sGruen + 60) sw.einBild();
+  slw.__feuere('pointerdown', zeiger(0.7, S_BREITE));
+  sw.window.__feuere('pointerup', zeiger(0.7, S_BREITE));
+  sw.einBild();
+
+  const PAD = S_BREITE * 0.45;        // dieselbe Zahl wie PAD_ANTEIL in rennen.js
+  const LUFT = PAD * 0.075;           // BAHN_LUFT
+  /* MIN_LENK laesst einen kurzen Tipper 0,2 s nachwirken - ohne diese Pause
+     misst die naechste Probe noch den Nachlauf der vorigen. */
+  function ruhe() { const bis = sw.jetzt() + 400; while (sw.jetzt() < bis) sw.einBild(); }
+
+  function daumen(x) {
+    ruhe();
+    slw.__feuere('pointerdown', { pointerId: 2, clientX: x, clientY: 300, preventDefault: function () {} });
+    sw.einBild();
+    const st = sRennen.stand();
+    const k = slw.getContext().boegen.filter(function (b) { return b.r === 19; });
+    const knopf = k.length ? k[k.length - 1] : null;
+    const aus = st && st.lauf ? physik.lenkAuslenkung(st.lauf) : 0;
+    sw.window.__feuere('pointerup', { pointerId: 2, clientX: x, clientY: 300, preventDefault: function () {} });
+    sw.einBild();
+    return { aus: aus, knopf: knopf };
+  }
+
+  const sLinks = daumen(LUFT);
+  pruefe('Daumen am linken Ende der gezeichneten Bahn = voll links',
+    Math.abs(sLinks.aus + 1) < 0.001, 'Auslenkung ' + sLinks.aus.toFixed(3));
+
+  const sRechts = daumen(PAD - LUFT);
+  pruefe('Daumen am rechten Ende der gezeichneten Bahn = voll rechts',
+    Math.abs(sRechts.aus - 1) < 0.001, 'Auslenkung ' + sRechts.aus.toFixed(3));
+
+  const sMitte = daumen(PAD / 2);
+  pruefe('Daumen in der Mitte lenkt nicht', sMitte.aus === 0, 'Auslenkung ' + sMitte.aus.toFixed(3));
+
+  let sVersatz = 0, sAlle = true;
+  for (const x of [LUFT, PAD * 0.3, PAD / 2, PAD * 0.7, PAD - LUFT]) {
+    const r = daumen(x);
+    if (!r.knopf) { sAlle = false; continue; }
+    sVersatz = Math.max(sVersatz, Math.abs(r.knopf.x - x));
+  }
+  pruefe('der Knopf wird ueberhaupt gezeichnet', sAlle);
+  pruefe('der Knopf liegt unter dem Daumen', sVersatz < 1.5,
+    'groesster Abstand ' + sVersatz.toFixed(2) + ' px');
+
+  const sUnten = daumen(PAD * 0.3);
+  pruefe('die Bahn haelt Abstand zur unteren Bildkante',
+    !!sUnten.knopf && S_HOEHE - sUnten.knopf.y >= 55,
+    sUnten.knopf ? Math.round(S_HOEHE - sUnten.knopf.y) + ' px ueber der Kante' : 'kein Knopf');
+
+  sRennen.stopp();
 }
 
 console.log('\n' + (fehler === 0 ? 'ALLES GRÜN' : fehler + ' FEHLER') + ' — ' + geprueft + ' Prüfungen\n');
