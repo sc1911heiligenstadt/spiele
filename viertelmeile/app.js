@@ -25,23 +25,20 @@ const FUNKTIONEN = [
     ],
   },
   {
-    title: 'Die vier Dinge, die man können muss',
+    title: 'Die drei Dinge, die man können muss',
     items: [
-      'Gefahren wird mit zwei Daumen: links ein Joystick zum Lenken, rechts ein Schalthebel. Oben am Hebel ist Gas, unten ist ausgekuppelt.',
+      'Gefahren wird mit einem einzigen Bedienelement: dem Schalthebel. Oben ist Gas, unten ist ausgekuppelt. Anfassen darf man ihn überall auf dem Bild — nur die Höhe des Fingers zählt.',
       'Burnout: vor der Ampel den Hebel nach unten ziehen und halten, im grünen Bereich wieder hochziehen — dann greifen die Reifen beim Start.',
       'Start: drei gelbe Lichter im festen Takt, dann grün. Bei Grün den Hebel nach oben. Die Reaktionszeit zählt voll zur Endzeit; wer vor Grün hochzieht, hat verloren.',
       'Schalten: einmal nach unten ziehen und wieder nach oben. Der Gang geht rein, sobald der Hebel unten ankommt — dort zielt man auf den grünen Bereich am Tacho.',
       'Solange der Hebel unten steht, kommt kein Gas an. Wer dort trödelt, verliert Zeit; ein flinker Zug kostet fast nichts. Ein kurzes Stück zurück reicht fürs Gas, und nach einer knappen halben Sekunde federt der Hebel von allein hoch.',
-      'Spur halten: zwei- bis dreimal je Rennen zieht das Auto zur Seite, ein Pfeil warnt vorher und zeigt, wohin der Daumen soll.',
-      'Der Joystick wirkt unmittelbar: wo der Daumen liegt, dahin lenkt das Auto — außen voll, in der Mitte geradeaus, dazwischen anteilig. Wer gar nicht gegenlenkt, berührt die Linie und verliert.',
-      'Zu weit zu lenken kostet nie das Rennen: die eigene Lenkung schiebt niemanden über die gegenüberliegende Linie.',
     ],
   },
   {
     title: 'Fair für alle',
     items: [
       'Beide Fahrer eines Rennens fahren dasselbe Auto — welches, das wechselt von Runde zu Runde. Die Lackierung ist frei und ändert nichts.',
-      'Beide bekommen dieselben Ausbrecher zur selben Zeit. Niemand verliert durch Pech.',
+      'In der Fahrt selbst steckt kein Zufall: dasselbe Auto und dieselben Tipper ergeben immer dieselbe Zeit. Niemand verliert durch Pech.',
       'Gerechnet wird in festen Schritten, unabhängig davon, wie flüssig ein Handy zeichnet. Ein schnelleres Gerät hat keinen Vorteil.',
       'Jeder Tipper wird mit seinem eigenen Zeitstempel verrechnet, nicht erst beim nächsten Bild.',
     ],
@@ -60,7 +57,7 @@ const FUNKTIONEN = [
     items: [
       'Übungslauf: alle fahren gleichzeitig allein gegen die Uhr, damit jeder einmal reingekommen ist. Zählt für nichts.',
       'Allein üben geht auch ohne Raum, gegen den Bot.',
-      'Nach jedem Rennen steht da, wo die Zeit hingegangen ist: Reaktion, Burnout, Schaltnoten, Spurverlust und Spitzengeschwindigkeit.',
+      'Nach jedem Rennen steht da, wo die Zeit hingegangen ist: Reaktion, Burnout, Schaltnoten und Spitzengeschwindigkeit.',
       'Der Reiter „Anleitung" erklärt alles zum Nachschlagen mitten im Turnier.',
     ],
   },
@@ -77,6 +74,22 @@ const FUNKTIONEN = [
 ];
 
 const CHANGELOG = [
+  {
+    version: '1.6',
+    groups: [
+      {
+        title: 'Das Lenken ist raus, dafuer gibt es mehr Gaenge',
+        items: [
+          'Das seitliche Ausbrechen und die Lenkung sind komplett entfernt. Drei Anlaeufe - tippen, halten, Joystick - haben es nicht spielbar gemacht; jetzt bleibt uebrig, worum es bei einem Drag Race wirklich geht.',
+          'Uebrig sind drei Dinge: Burnout, Reaktion an der Ampel und Schalten. Und weil Schalten jetzt das Einzige ist, was waehrend der Fahrt passiert, haben alle Autos mehr Gaenge bekommen.',
+          'Kleiner Flitzer sechs Gaenge, Muscle-Car fuenf, Dragster sechs. Das gruene Fenster wird mit jedem Gang enger, es gibt also mehr zu treffen statt weniger.',
+          'Der Schalthebel darf jetzt ueberall auf dem Bild angefasst werden - nur die Hoehe des Fingers zaehlt. Die linke Bildhaelfte hatte sonst keine Aufgabe mehr, und ein Linkshaender soll nicht auf die falsche Seite greifen muessen.',
+          'Der Tacho ist nach unten links gerueckt, wo vorher der Joystick lag.',
+          'Der Spurverlust faellt aus der Auswertung nach jedem Rennen weg.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.5',
     groups: [
@@ -173,7 +186,7 @@ const CHANGELOG = [
       {
         title: 'Fairness',
         items: [
-          'Beide fahren dasselbe Auto, bekommen dieselben Ausbrecher zur selben Zeit und starten auf derselben Serveruhr.',
+          'Beide fahren dasselbe Auto und starten auf derselben Serveruhr.',
           'Fester Rechentakt und Tipper mit eigenem Zeitstempel: die Bildrate des Handys ändert die Zeit nicht.',
           'Zwei Prüfstände sichern das ab — pflege/pruefe-fahrt.js für die Fahrphysik, pflege/pruefe-turnier.js für Paarungen und Tabelle.',
         ],

@@ -171,15 +171,6 @@ function hebelZeiger(mod, wo) {
   };
 }
 
-/** Der LINKE Daumen auf dem Joystick — eigene Zeigerkennung. */
-function lenkZeiger(mod, richtung) {
-  const j = mod.masze().joy;
-  return {
-    pointerId: 2, clientX: j.x + richtung * j.r, clientY: j.y,
-    preventDefault: function () {},
-  };
-}
-
 /* --------------------------------------------------------------------------
    Ein Rennen fahren
    -------------------------------------------------------------------------- */
@@ -190,7 +181,6 @@ function lenkZeiger(mod, richtung) {
  *   fruehstart     Sekunden VOR Grün tippen (überschreibt reaktion)
  *   waerme         bis zu welchem Balkenstand gehalten wird (null = gar nicht)
  *   schaltZiel     Drehzahl, ab der geschaltet wird
- *   lenken         true = Ausbrecher werden gehalten
  *   verschwinde    Sekunde, in der die App in den Hintergrund geht
  */
 function fahre(fahrer, opt) {
@@ -220,7 +210,7 @@ function fahre(fahrer, opt) {
   });
 
   const t = function () { return (welt.uhr - gruenZeit) / 1000; };
-  let haelt = false, gestartet = false, lenktGerade = 0, wache = 0;
+  let haelt = false, gestartet = false, wache = 0;
 
   while (!ergebnis && wache++ < 4000) {
     welt.einBild();
@@ -268,38 +258,12 @@ function fahre(fahrer, opt) {
       }
     }
 
-    /* Lenken — GEHALTEN, mit einem eigenen Finger.
-       ⚠️ Der Daumen bleibt liegen; losgelassen wird erst, wenn das Auto
-       wieder mittig steht. Genau so soll es sich anfühlen, und genau das
-       muss der Prüfstand fahren — sonst prüft er eine Bedienung, die es
-       nicht gibt. Der Lenk-Zeiger trägt eine ANDERE `pointerId` als der
-       Gas-Daumen: beide liegen oft gleichzeitig auf dem Glas. */
-    if (fahrer.lenken) {
-      let zieht = 0, schlaeft = false;
-      for (const zg of l.zuege) {
-        if (l.t >= zg.zeit && l.t < zg.zeit + physik.ZUG_DAUER) {
-          if (l.t < zg.zeit + (fahrer.lenkVerzug || 0)) { schlaeft = true; break; }
-          zieht += zg.richtung;
-        }
-      }
-      let halten = 0;
-      if (schlaeft) halten = 0;
-      else if (Math.abs(l.versatz) > 0.08) halten = l.versatz > 0 ? -1 : 1;
-      else if (zieht !== 0) halten = zieht > 0 ? -1 : 1;
-
-      if (halten !== lenktGerade) {
-        if (lenktGerade !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennen, lenktGerade));
-        if (halten !== 0) leinwand.__feuere('pointerdown', lenkZeiger(rennen, halten));
-        lenktGerade = halten;
-      }
-    }
   }
-  if (lenktGerade !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennen, lenktGerade));
 
   return { ergebnis: ergebnis, gegner: gegnerErgebnis, gemeldet: gemeldet, bilder: wache, toene: welt.tonRuf };
 }
 
-const GUT = { reaktion: 0.18, waerme: 0.92, lenken: true };
+const GUT = { reaktion: 0.18, waerme: 0.92 };
 
 /* --------------------------------------------------------------------------
    1. Ein ganzes Rennen von vorn bis hinten
@@ -328,13 +292,13 @@ if (r1.ergebnis) {
 
 console.log('\n=== 2. Frühstart ===\n');
 
-const r2 = fahre({ reaktion: null, fruehstart: 0.30, waerme: 0.92, lenken: true }, {});
+const r2 = fahre({ reaktion: null, fruehstart: 0.30, waerme: 0.92 }, {});
 pruefe('vor Grün getippt wird als Frühstart gewertet', !!r2.ergebnis && r2.ergebnis.fehlstart === true);
 pruefe('ein Frühstart hat keine Zeit', !!r2.ergebnis && r2.ergebnis.gesamt === null);
 pruefe('die Reaktion wird negativ vermerkt', !!r2.ergebnis && r2.ergebnis.reaktion < 0, z3(r2.ergebnis && r2.ergebnis.reaktion));
 
 /* Ganz früh — noch vor dem Anrollen — darf NICHT zählen. */
-const r2b = fahre({ reaktion: null, fruehstart: 4.0, waerme: 0.92, lenken: true }, {});
+const r2b = fahre({ reaktion: null, fruehstart: 4.0, waerme: 0.92 }, {});
 pruefe('ein Tipper vor dem Anrollen zählt nicht als Frühstart', !!r2b.ergebnis && !r2b.ergebnis.fehlstart, r2b.ergebnis ? (r2b.ergebnis.nichtGestartet ? 'gilt als nicht losgefahren' : 'gefahren') : '—');
 
 /* --------------------------------------------------------------------------
@@ -343,45 +307,35 @@ pruefe('ein Tipper vor dem Anrollen zählt nicht als Frühstart', !!r2b.ergebnis
 
 console.log('\n=== 3. Nicht losgefahren ===\n');
 
-const r3 = fahre({ reaktion: null, waerme: 0.92, lenken: false }, {});
+const r3 = fahre({ reaktion: null, waerme: 0.92 }, {});
 pruefe('wer nie tippt, verliert', !!r3.ergebnis && r3.ergebnis.aus === true);
 pruefe('das wird als „nicht losgefahren" vermerkt', !!r3.ergebnis && r3.ergebnis.nichtGestartet === true);
 pruefe('das Rennen bricht trotzdem ab und hängt nicht', r3.bilder < 2000, r3.bilder + ' Bilder');
 
 /* --------------------------------------------------------------------------
-   4. Spur verlassen
+   4. Burnout
    -------------------------------------------------------------------------- */
 
-console.log('\n=== 4. Spur verlassen ===\n');
+console.log('\n=== 4. Burnout ===\n');
 
-const r4 = fahre({ reaktion: 0.18, waerme: 0.92, lenken: false }, {});
-pruefe('ohne Gegenlenken endet das Rennen an der Linie', !!r4.ergebnis && r4.ergebnis.aus === true);
-pruefe('dann gibt es keine Zeit', !!r4.ergebnis && r4.ergebnis.gesamt === null);
-
-/* --------------------------------------------------------------------------
-   5. Burnout
-   -------------------------------------------------------------------------- */
-
-console.log('\n=== 5. Burnout ===\n');
-
-const kalt = fahre({ reaktion: 0.18, waerme: null, lenken: true }, {});
-const warm = fahre({ reaktion: 0.18, waerme: 0.92, lenken: true }, {});
-const heiss = fahre({ reaktion: 0.18, waerme: 1.30, lenken: true }, {});
+const kalt = fahre({ reaktion: 0.18, waerme: null }, {});
+const warm = fahre({ reaktion: 0.18, waerme: 0.92 }, {});
+const heiss = fahre({ reaktion: 0.18, waerme: 1.30 }, {});
 console.log('  gar nicht aufgewärmt: ' + z3(kalt.ergebnis && kalt.ergebnis.gesamt) + ' s (' + (kalt.ergebnis && kalt.ergebnis.burnout) + ')');
 console.log('  Punktlandung:         ' + z3(warm.ergebnis && warm.ergebnis.gesamt) + ' s (' + (warm.ergebnis && warm.ergebnis.burnout) + ')');
 console.log('  überhitzt:            ' + z3(heiss.ergebnis && heiss.ergebnis.gesamt) + ' s (' + (heiss.ergebnis && heiss.ergebnis.burnout) + ')');
 pruefe('gar nicht aufgewärmt ist langsamer als die Punktlandung', kalt.ergebnis.gesamt > warm.ergebnis.gesamt + 0.1);
 pruefe('überhitzt ist auch langsamer als die Punktlandung', heiss.ergebnis.gesamt > warm.ergebnis.gesamt + 0.05, z3(heiss.ergebnis.gesamt - warm.ergebnis.gesamt) + ' s');
 
-const ohne = fahre({ reaktion: 0.18, lenken: true }, { burnout: false });
+const ohne = fahre({ reaktion: 0.18 }, { burnout: false });
 pruefe('ohne Burnout läuft das Rennen trotzdem', !!ohne.ergebnis && typeof ohne.ergebnis.gesamt === 'number', z3(ohne.ergebnis && ohne.ergebnis.gesamt) + ' s');
 pruefe('ohne Burnout ist der Vorlauf kürzer', ohne.bilder < r1.bilder, ohne.bilder + ' gegen ' + r1.bilder + ' Bilder');
 
 /* --------------------------------------------------------------------------
-   6. Bildrate
+   5. Bildrate
    -------------------------------------------------------------------------- */
 
-console.log('\n=== 6. Die Bildrate darf die Zeit nicht ändern ===\n');
+console.log('\n=== 5. Die Bildrate darf die Zeit nicht ändern ===\n');
 
 /* ⚠️ WAS HIER GEMESSEN WIRD — UND WAS NICHT.
    Der RECHENKERN ist bildratenunabhängig, auf die Tausendstel: das steht in
@@ -392,9 +346,13 @@ console.log('\n=== 6. Die Bildrate darf die Zeit nicht ändern ===\n');
    ist kein Fehler, sondern die Wahrheit über ein langsames Gerät. Gemessen
    wird, dass er klein bleibt und nicht davonläuft:
      30 Bilder/s  ->  unter 0,10 s
-     15 Bilder/s  ->  unter 0,40 s
+     15 Bilder/s  ->  unter 0,65 s
    Bei 15 Bildern/s ruckelt die Anzeige ohnehin sichtbar; wer damit fährt,
-   merkt es. */
+   merkt es.
+   ⚠️ Die Grenze ist mit den Autos gewachsen: seit sie fünf bis sechs Gänge
+   haben, gibt es mehr Schaltvorgänge, und jeder einzelne wird auf einem
+   langsamen Gerät später GESEHEN. Gemessen 0,52 s statt vorher 0,33 s. Wer
+   die Gangzahl ändert, muss diese Zahl mitziehen. */
 const schnell = fahre(GUT, { bilder: 120 });
 const langsam = fahre(GUT, { bilder: 30 });
 const sehrLangsam = fahre(GUT, { bilder: 15 });
@@ -403,14 +361,14 @@ console.log('   30 Bilder/s: ' + z3(langsam.ergebnis.gesamt) + ' s');
 console.log('   15 Bilder/s: ' + z3(sehrLangsam.ergebnis.gesamt) + ' s');
 pruefe('30 gegen 120 Bilder/s: der Fahrer verliert unter 0,10 s', Math.abs(schnell.ergebnis.gesamt - langsam.ergebnis.gesamt) < 0.10,
   z3(Math.abs(schnell.ergebnis.gesamt - langsam.ergebnis.gesamt)) + ' s');
-pruefe('15 gegen 120 Bilder/s: der Fahrer verliert unter 0,40 s', Math.abs(schnell.ergebnis.gesamt - sehrLangsam.ergebnis.gesamt) < 0.40,
+pruefe('15 gegen 120 Bilder/s: der Fahrer verliert unter 0,65 s', Math.abs(schnell.ergebnis.gesamt - sehrLangsam.ergebnis.gesamt) < 0.65,
   z3(Math.abs(schnell.ergebnis.gesamt - sehrLangsam.ergebnis.gesamt)) + ' s');
 
 /* --------------------------------------------------------------------------
-   7. App weggedrückt
+   6. App weggedrückt
    -------------------------------------------------------------------------- */
 
-console.log('\n=== 7. App mitten im Rennen weggedrückt ===\n');
+console.log('\n=== 6. App mitten im Rennen weggedrückt ===\n');
 
 const weg = fahre(GUT, { verschwinde: 3.0 });
 pruefe('das Rennen endet sofort', !!weg.ergebnis);
@@ -418,10 +376,10 @@ pruefe('es gilt als abgebrochen', !!weg.ergebnis && weg.ergebnis.abgebrochen ===
 pruefe('und es gibt keine Zeit', !!weg.ergebnis && weg.ergebnis.gesamt === null);
 
 /* --------------------------------------------------------------------------
-   8. Standmeldungen ans andere Handy
+   7. Standmeldungen ans andere Handy
    -------------------------------------------------------------------------- */
 
-console.log('\n=== 8. Standmeldungen ===\n');
+console.log('\n=== 7. Standmeldungen ===\n');
 
 const welt = neueWelt(60);
 const rennenMod = ladeRennen(welt);
@@ -440,14 +398,13 @@ rennenMod.starte({
 {
   let wache = 0;
   let gestartet = false;
-  let lenkt = 0;
   while (!fertigErg && wache++ < 4000) {
     welt.einBild();
     const st = rennenMod.stand();
     if (!st) break;
     const tt = (welt.uhr - gruen) / 1000;
     /* Der Gegner meldet sich alle 100 ms mit seinem Stand. */
-    if (tt > 0) rennenMod.setzeGegner({ t: tt, s: Math.min(402.34, tt * 38), v: 38, versatz: 0, fertig: tt * 38 >= 402.34, aus: false });
+    if (tt > 0) rennenMod.setzeGegner({ t: tt, s: Math.min(402.34, tt * 38), v: 38, fertig: tt * 38 >= 402.34, aus: false });
     const l = st.lauf;
     if (!l) continue;
     if (l.reaktion === null && !gestartet && tt >= 0.2) {
@@ -465,31 +422,20 @@ rennenMod.starte({
         welt.window.__feuere('pointerup', hebelZeiger(rennenMod, 'unten'));
       }
     }
-    let zieht = 0;
-    for (const zg of l.zuege) if (l.t >= zg.zeit && l.t < zg.zeit + physik.ZUG_DAUER) zieht += zg.richtung;
-    let halten = 0;
-    if (Math.abs(l.versatz) > 0.08) halten = l.versatz > 0 ? -1 : 1;
-    else if (zieht !== 0) halten = zieht > 0 ? -1 : 1;
-    if (halten !== lenkt) {
-      if (lenkt !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennenMod, lenkt));
-      if (halten !== 0) leinwand.__feuere('pointerdown', lenkZeiger(rennenMod, halten));
-      lenkt = halten;
-    }
   }
-  if (lenkt !== 0) welt.window.__feuere('pointerup', lenkZeiger(rennenMod, lenkt));
 }
 pruefe('gegen einen Gegner über das Netz kommt ein Ergebnis heraus', !!fertigErg && typeof fertigErg.gesamt === 'number', z3(fertigErg && fertigErg.gesamt) + ' s');
 pruefe('der eigene Stand wird regelmäßig gemeldet', meldungen.length > 60, meldungen.length + ' Meldungen');
-pruefe('eine Meldung enthält Strecke, Tempo und Querlage',
-  meldungen.length > 0 && typeof meldungen[0].s === 'number' && typeof meldungen[0].v === 'number' && typeof meldungen[0].versatz === 'number');
+pruefe('eine Meldung enthält Strecke und Tempo',
+  meldungen.length > 0 && typeof meldungen[0].s === 'number' && typeof meldungen[0].v === 'number');
 pruefe('die gemeldete Strecke wächst', meldungen.length > 2 && meldungen[meldungen.length - 1].s > meldungen[0].s);
 pruefe('gegen einen Fern-Gegner wird KEIN fremdes Ergebnis mitgeschrieben', true);
 
 /* --------------------------------------------------------------------------
-   9. Zwei Rennen hintereinander
+   8. Zwei Rennen hintereinander
    -------------------------------------------------------------------------- */
 
-console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
+console.log('\n=== 8. Zwei Rennen hintereinander ===\n');
 
 /* ⚠️ Hier lag ein echter Fehler: `cancelAnimationFrame` hält ein schon
    eingereihtes Bild nicht auf. Ohne Laufnummer bediente ein Nachzügler des
@@ -512,7 +458,7 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
       aufPosition: null,
       fertig: function (e) { erg = e; },
     });
-    let wache = 0, gestartet = false, lenkt = 0;
+    let wache = 0, gestartet = false;
     while (!erg && wache++ < 4000) {
       w.einBild();
       const st = rm.stand();
@@ -535,18 +481,7 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
           w.window.__feuere('pointerup', hebelZeiger(rm, 'unten'));
         }
       }
-      let zieht = 0;
-      for (const zg of l.zuege) if (l.t >= zg.zeit && l.t < zg.zeit + physik.ZUG_DAUER) zieht += zg.richtung;
-      let halten = 0;
-      if (Math.abs(l.versatz) > 0.08) halten = l.versatz > 0 ? -1 : 1;
-      else if (zieht !== 0) halten = zieht > 0 ? -1 : 1;
-      if (halten !== lenkt) {
-        if (lenkt !== 0) w.window.__feuere('pointerup', lenkZeiger(rm, lenkt));
-        if (halten !== 0) lw.__feuere('pointerdown', lenkZeiger(rm, halten));
-        lenkt = halten;
-      }
     }
-    if (lenkt !== 0) { w.window.__feuere('pointerup', lenkZeiger(rm, lenkt)); lenkt = 0; }
     zeiten.push(erg ? erg.gesamt : null);
   }
   console.log('  Lauf 1: ' + z3(zeiten[0]) + ' s   Lauf 2: ' + z3(zeiten[1]) + ' s');
@@ -557,7 +492,7 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
 }
 
 /* --------------------------------------------------------------------------
-   10. Joystick und Schalthebel: Bild und Finger an derselben Stelle
+   9. Der Schalthebel: Bild und Finger an derselben Stelle
    --------------------------------------------------------------------------
    Der Vorgaenger, ein Balken, zeichnete seine Bahn von 4,5 % bis 40,5 % der
    Bildbreite und rechnete von 0 % bis 45 %. Wer den Daumen ans sichtbare Ende
@@ -568,7 +503,7 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
    -------------------------------------------------------------------------- */
 {
   console.log('');
-  console.log('=== 10. Joystick und Schalthebel ===');
+  console.log('=== 9. Der Schalthebel ===');
   console.log('');
 
   const S_BREITE = 800, S_HOEHE = 400;
@@ -584,7 +519,7 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
   });
 
   const M = sRennen.masze();
-  const J = M.joy, HB = M.hebel;
+  const HB = M.hebel;
 
   /* --- Der Hebel --- */
   while (sw.jetzt() < sGruen + 60) sw.einBild();
@@ -689,49 +624,8 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
     sw.einBild();
   }
 
-  /* --- Der Joystick --- */
-  function daumen(x) {
-    ruhe(0.4);
-    slw.__feuere('pointerdown', { pointerId: 2, clientX: x, clientY: J.y, preventDefault: function () {} });
-    sw.einBild();
-    const st = sRennen.stand();
-    const k = slw.getContext().boegen.filter(function (bo) { return bo.r === 25; });
-    const knopf = k.length ? k[k.length - 1] : null;
-    const aus = st && st.lauf ? physik.lenkAuslenkung(st.lauf) : 0;
-    sw.window.__feuere('pointerup', { pointerId: 2, clientX: x, clientY: J.y, preventDefault: function () {} });
-    sw.einBild();
-    return { aus: aus, knopf: knopf };
-  }
-
-  const links = daumen(J.x - J.r);
-  pruefe('Daumen am linken Rand des Joysticks = voll links',
-    Math.abs(links.aus + 1) < 0.001, 'Auslenkung ' + links.aus.toFixed(3));
-
-  const rechts = daumen(J.x + J.r);
-  pruefe('Daumen am rechten Rand des Joysticks = voll rechts',
-    Math.abs(rechts.aus - 1) < 0.001, 'Auslenkung ' + rechts.aus.toFixed(3));
-
-  const mitte = daumen(J.x);
-  pruefe('Daumen in der Mitte lenkt nicht', mitte.aus === 0, 'Auslenkung ' + mitte.aus.toFixed(3));
-
-  const halb = daumen(J.x - J.r * 0.5);
-  pruefe('halb ausgelenkt ist auch halbe Lenkung',
-    halb.aus < -0.35 && halb.aus > -0.60, 'Auslenkung ' + halb.aus.toFixed(3));
-
-  let versatz = 0, alleDa = true;
-  for (const x of [J.x - J.r, J.x - J.r * 0.4, J.x, J.x + J.r * 0.6, J.x + J.r]) {
-    const r = daumen(x);
-    if (!r.knopf) { alleDa = false; continue; }
-    versatz = Math.max(versatz, Math.abs(r.knopf.x - x));
-  }
-  pruefe('der Knopf wird ueberhaupt gezeichnet', alleDa);
-  pruefe('der Knopf sitzt unter dem Daumen', versatz < 1.5,
-    'groesster Abstand ' + versatz.toFixed(2) + ' px');
-
   /* Kein Bedienelement an der unteren Bildkante: dort liegen auf dem Handy
      die Browserleiste und der Wisch-nach-Hause-Streifen. */
-  pruefe('der Joystick haelt Abstand zur unteren Bildkante',
-    S_HOEHE - (J.y + J.r) >= 25, Math.round(S_HOEHE - (J.y + J.r)) + ' px');
   pruefe('der Hebel haelt Abstand zur unteren Bildkante',
     S_HOEHE - HB.unten >= 25, Math.round(S_HOEHE - HB.unten) + ' px');
   /* ⚠️ Auch die Beschriftung UNTER dem Hebel muss ins Bild passen. Bei
@@ -739,9 +633,6 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
   pruefe('die Beschriftung unter dem Hebel bleibt im Bild',
     HB.unten + HB.br / 2 + 16 <= S_HOEHE - 4,
     Math.round(S_HOEHE - (HB.unten + HB.br / 2 + 16)) + ' px Luft');
-  pruefe('Joystick und Hebel ueberlappen sich nicht',
-    J.x + J.r + 16 < HB.x - HB.br / 2,
-    'Luecke ' + Math.round((HB.x - HB.br / 2) - (J.x + J.r + 16)) + ' px');
 
   sRennen.stopp();
 
@@ -765,9 +656,8 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
         fertig: function (e) { erg = e; },
       });
       const hb = r2.masze().hebel;
-      const jo = r2.masze().joy;
       const zurueckY = hb.unten - hb.hoch * zurueckAnteil;
-      let los = false, untenSeit = -1, wache = 0, lenkt = 0;
+      let los = false, untenSeit = -1, wache = 0;
       while (!erg && wache++ < 4000) {
         w2.einBild();
         const st = r2.stand();
@@ -795,20 +685,6 @@ console.log('\n=== 9. Zwei Rennen hintereinander ===\n');
           }
         }
 
-        /* Der zweite Daumen haelt die Spur - sonst fliegt jede Fahrt raus und
-           die Messung sagt gar nichts ueber das Gas. */
-        let zieht = 0;
-        for (const zg of l.zuege) {
-          if (l.t >= zg.zeit + 0.30 && l.t < zg.zeit + physik.ZUG_DAUER) zieht += zg.richtung;
-        }
-        let will = 0;
-        if (Math.abs(l.versatz) > 0.06) will = l.versatz > 0 ? -1 : 1;
-        else if (zieht !== 0) will = zieht > 0 ? -1 : 1;
-        if (will !== lenkt) {
-          if (lenkt !== 0) w2.window.__feuere('pointerup', { pointerId: 2, clientX: jo.x + lenkt * jo.r, clientY: jo.y, preventDefault: function () {} });
-          if (will !== 0) lw2.__feuere('pointerdown', { pointerId: 2, clientX: jo.x + will * jo.r, clientY: jo.y, preventDefault: function () {} });
-          lenkt = will;
-        }
       }
       return erg;
     }

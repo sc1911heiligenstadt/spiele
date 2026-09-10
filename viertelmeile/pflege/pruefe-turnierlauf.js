@@ -90,7 +90,7 @@ function fahreRunde(gs, guete) {
     abgebrochen: false, nichtGestartet: false,
     fahrzeit: meiner.fahrzeit, gesamt: meiner.zielZeit !== null && !meiner.aus && !meiner.fehlstart ? meiner.zielZeit : null,
     noten: meiner.noten, waerme: meiner.waerme, burnout: physik.burnoutNote(meiner.waerme),
-    spurVerlust: meiner.spurVerlust, spitze: Math.round(meiner.v * 3.6),
+    spitze: Math.round(meiner.v * 3.6),
   };
 
   let gegner = null;
@@ -100,7 +100,7 @@ function fahreRunde(gs, guete) {
       auto: auto.id, reaktion: g.reaktion, fehlstart: !!g.fehlstart, aus: !!g.aus,
       fahrzeit: g.fahrzeit, gesamt: g.zielZeit !== null && !g.aus && !g.fehlstart ? g.zielZeit : null,
       noten: g.noten, waerme: g.waerme, burnout: physik.burnoutNote(g.waerme),
-      spurVerlust: g.spurVerlust, spitze: Math.round(g.v * 3.6),
+      spitze: Math.round(g.v * 3.6),
     };
   }
   return gs.meldeErgebnis(meins, gegner).then(function () { return sicht.schluessel; });

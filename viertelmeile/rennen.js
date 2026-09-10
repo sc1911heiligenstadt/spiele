@@ -6,11 +6,8 @@
    hier ist nur Bild und Bedienung.
 
    BEDIENUNG, QUER GEHALTEN:
-     linke 45 % = LENK-SCHIEBER. Wo der Daumen liegt, dahin lenkt das Auto:
-                  links außen voll links, Mitte geradeaus, rechts außen voll
-                  rechts. Ziehen dosiert, Tippen setzt sofort. Finger weg =
-                  geradeaus.
-     rechts     = Burnout halten, bei Grün losfahren, dann schalten
+     Die ganze Flaeche ist der SCHALTHEBEL: oben Gas, unten ausgekuppelt.
+     Gelenkt wird nicht mehr (seit 2026-09-10 ganz entfernt).
 
    ⚠️ JEDER TIPPER BRINGT SEINE ZEIT MIT. Er wird nicht beim nächsten Bild
    verrechnet, sondern in genau dem Rechenschritt, in dem er passiert ist
@@ -101,9 +98,6 @@ const rennen = (function () {
       raf: null,
       abgebrochen: false,
       nummer: ++laufNummer,
-      lenkStellungJetzt: 0,
-      joyX: 0,
-      joyY: 0,
       hebelP: 0,
       hebelOben: false,
       hebelUntenSeit: -1,
@@ -151,61 +145,36 @@ const rennen = (function () {
      Tipper
      ---------------------------------------------------------------------- */
 
-  /* ⚠️ ZWEI FINGER, ZWEI ZEIGER. Links liegt der Lenk-Schieber, rechts wird
-     gehalten (Burnout) und getippt (Start, Schalten) — oft gleichzeitig.
-     Deshalb wird je Aufgabe die `pointerId` gemerkt; ein einzelner Merker
-     hätte den Daumen, der gerade schaltet, als „Lenkung losgelassen"
-     verbucht. */
+  /* ⚠️ EIN FINGER, EINE AUFGABE. Seit die Lenkung weg ist, gibt es rechts
+     wie links nur noch den Schalthebel. Die Zeigerkennung bleibt trotzdem
+     gemerkt: sonst verbucht ein zweiter Finger, der irgendwo aufs Glas
+     kommt, den Hebel als losgelassen. */
   let gasZeiger = null;
-  let lenkZeiger = null;
 
-  const PAD_ANTEIL = 0.45;      // links vom Daumen: der Joystick. Rechts: der Hebel.
-  const TOT_JOY = 0.06;         // ganz kleine Wackler zaehlen nicht
-  /* ⚠️ TIEF ZIEHEN, ABER LEICHT ZURUECK. Michel: "vom 2ten in den 3ten
-     verliert er massiv Geschwindigkeit, weil er kein Gas nimmt." Ursache
-     waren zwei zu hohe Schwellen: einmal unten, musste der Daumen wieder bis
-     auf 62 % der Bahn hoch, sonst blieb der Hebel ausgekuppelt. Ein Daumen,
-     der nach dem letzten Gang irgendwo in der Mitte liegen bleibt, rollte
-     damit ohne Gas ins Ziel — und weil es nach dem letzten Gang keinen Grund
-     mehr gibt, den Hebel anzufassen, fiel es genau dort auf.
-     Jetzt: tief ziehen zum Schalten, aber schon ein kurzes Stueck zurueck
-     bringt das Gas wieder. */
   const HEBEL_OBEN = 0.38;      // ab hier gilt der Hebel als oben (Gas)
   const HEBEL_UNTEN = 0.22;     // darunter als unten (ausgekuppelt)
-  /* ⚠️ Und eine Rueckholfeder: laenger als das bleibt der Hebel im Rennen
-     nie unten. Die Zehntel bis dahin zahlt man, aber niemand rollt mehr
+  /* ⚠️ Eine Rueckholfeder: laenger als das bleibt der Hebel im Rennen nie
+     unten. Die Zehntel bis dahin zahlt man, aber niemand rollt mehr
      versehentlich die halbe Bahn ohne Gas. */
   const HEBEL_ZURUECK = 0.45;   // Sekunden, dann federt er von allein hoch
 
-  function zone(x) { return x < z.breite * PAD_ANTEIL ? 'lenk' : 'gas'; }
-
   /**
-   * Der Joystick unten links - EINE Quelle fuer Zeichnen UND Tippen.
+   * Der Schalthebel - Gas ist oben, ausgekuppelt ist unten.
    *
-   * Klein und rund, kein Balken. Michel nach dem Balken: "das links rechts
-   * ist noch zu hakelig, darf gerne fast Echtzeit sein und wirklich mit
-   * einem kleinen Joystick".
-   *
-   * Er sitzt FEST, nicht dort, wo der Finger aufkommt. Ein Joystick, der
-   * unter dem Finger entsteht, verlangt erst eine Ziehbewegung, bevor
-   * ueberhaupt etwas passiert - wer einfach hintippt, erreichte nichts.
-   */
-  function joystick() {
-    const r = Math.max(44, Math.min(58, z.hoehe * 0.17));
-    return { x: r + 34, y: z.hoehe - r - 34, r: r };
-  }
-
-  /**
-   * Der Schalthebel rechts - Gas ist oben, ausgekuppelt ist unten.
+   * ⚠️ ANGEFASST WERDEN DARF ER UEBERALL. Gezeichnet steht er rechts, wo der
+   * Daumen liegt, aber jeder Punkt des Bildes zaehlt: nur die HOEHE des
+   * Fingers bestimmt die Stellung. Seit die Lenkung weg ist, hat die linke
+   * Bildhaelfte keine eigene Aufgabe mehr - und ein Linkshaender soll nicht
+   * auf die falsche Seite greifen muessen.
    *
    * ⚠️ NICHT AN DER UNTEREN BILDKANTE. Dort liegen auf dem Handy die Leiste
    * des Browsers und der Streifen fuers Wischen nach Hause; ein Daumen, der
    * dort liegt, kommt im Spiel nie an.
    */
   function hebelBahn() {
-    const hoch = Math.max(110, Math.min(210, z.hoehe * 0.56));
-    const br = 54;
-    const unten = z.hoehe - 52;   /* Platz fuer die Beschriftung darunter */
+    const hoch = Math.max(110, Math.min(230, z.hoehe * 0.60));
+    const br = 62;
+    const unten = z.hoehe - 52;
     return { x: z.breite - br / 2 - 20, br: br, unten: unten, oben: unten - hoch, hoch: hoch };
   }
 
@@ -219,23 +188,6 @@ const rennen = (function () {
     return p;
   }
 
-  /** Auslenkung -1..1 aus der Daumenposition, noch ohne Totzone. */
-  function rohAus(x) {
-    const j = joystick();
-    if (j.r <= 0) return 0;
-    let a = (x - j.x) / j.r;
-    if (a > 1) a = 1;
-    if (a < -1) a = -1;
-    return a;
-  }
-
-  function stellungAus(x) {
-    const a = rohAus(x);
-    if (Math.abs(a) < TOT_JOY) return 0;
-    const v = (Math.abs(a) - TOT_JOY) / (1 - TOT_JOY);
-    return a < 0 ? -v : v;
-  }
-
   function zeigerId(e) { return e.pointerId === undefined ? 1 : e.pointerId; }
 
   function beiRunter(e) {
@@ -243,19 +195,10 @@ const rennen = (function () {
     e.preventDefault();
     ton.entsperre();
     const rect = z.canvas.getBoundingClientRect();
-    const x = (e.clientX !== undefined ? e.clientX : 0) - rect.left;
     const y = (e.clientY !== undefined ? e.clientY : 0) - rect.top;
-    const t = tRel();
-
-    if (zone(x) === 'gas') {
-      gasZeiger = zeigerId(e);
-      setzeHebel(hebelAus(y), t);
-      return;
-    }
-    if (!z.lauf || !z.lauf.gestartet) return;
-    lenkZeiger = zeigerId(e);
-    setzeLenkung(x, y, t);
-    ton.vibriere(12);
+    if (gasZeiger === null) gasZeiger = zeigerId(e);
+    else if (zeigerId(e) !== gasZeiger) return;
+    setzeHebel(hebelAus(y), tRel());
   }
 
   /**
@@ -313,30 +256,9 @@ const rennen = (function () {
     z.eingaben.push({ zeit: t, art: 'hebel', oben: true });
   }
 
-  /** Der Daumen im Joystickfeld - genau das IST das Lenken. */
-  function setzeLenkung(x, y, t) {
-    const j = joystick();
-    let dx = (x - j.x) / j.r, dy = (y - j.y) / j.r;
-    if (dx > 1) dx = 1; if (dx < -1) dx = -1;
-    if (dy > 1) dy = 1; if (dy < -1) dy = -1;
-    const laenge = Math.sqrt(dx * dx + dy * dy);
-    z.joyX = laenge > 1 ? dx / laenge : dx;
-    z.joyY = laenge > 1 ? dy / laenge : dy;
-    const wert = stellungAus(x);
-    if (Math.abs(wert - z.lenkStellungJetzt) < 0.015) return;
-    z.lenkStellungJetzt = wert;
-    z.eingaben.push({ zeit: t, art: 'lenkStellung', wert: wert });
-  }
-
   function beiHoch(e) {
     if (!z) return;
     const id = zeigerId(e);
-    if (lenkZeiger !== null && id === lenkZeiger) {
-      lenkZeiger = null;
-      z.joyX = 0; z.joyY = 0;
-      z.lenkStellungJetzt = 0;
-      z.eingaben.push({ zeit: tRel(), art: 'lenkStellung', wert: 0 });
-    }
     if (gasZeiger === null || id !== gasZeiger) return;
     gasZeiger = null;
     /* ⚠️ Losgelassen heisst NICHT "Hebel egal". Vor dem Losfahren federt er
@@ -356,15 +278,10 @@ const rennen = (function () {
 
   function beiZug(e) {
     if (!z || z.beendet) return;
-    const id = zeigerId(e);
+    if (gasZeiger === null || zeigerId(e) !== gasZeiger) return;
     const rect = z.canvas.getBoundingClientRect();
-    const x = (e.clientX !== undefined ? e.clientX : 0) - rect.left;
     const y = (e.clientY !== undefined ? e.clientY : 0) - rect.top;
-    const t = tRel();
-    if (gasZeiger !== null && id === gasZeiger) { setzeHebel(hebelAus(y), t); return; }
-    if (lenkZeiger === null || id !== lenkZeiger) return;
-    if (!z.lauf || !z.lauf.gestartet) return;
-    setzeLenkung(x, y, t);
+    setzeHebel(hebelAus(y), tRel());
   }
 
   function haengeTipperAn() {
@@ -383,7 +300,6 @@ const rennen = (function () {
     window.removeEventListener('pointerup', beiHoch);
     window.removeEventListener('pointercancel', beiHoch);
     gasZeiger = null;
-    lenkZeiger = null;
   }
 
   function melde(text, art) {
@@ -403,12 +319,12 @@ const rennen = (function () {
     if (d.fertig || d.aus) z.fernFertig = true;
   }
 
-  /** Wo steht der Gegner gerade? Gibt {s, versatz, fertig} oder null. */
+  /** Wo steht der Gegner gerade? Gibt {s, fertig} oder null. */
   function gegnerStand(t) {
     if (z.gegnerSpur) {
       const p = bot.ausSpur(z.gegnerSpur, t);
       if (!p) return null;
-      return { s: z.gegnerLauf.aus ? p.s : p.s, versatz: p.versatz, aus: z.gegnerLauf.aus && t >= z.gegnerLauf.t, fertig: t >= z.gegnerLauf.t };
+      return { s: p.s, aus: z.gegnerLauf.aus && t >= z.gegnerLauf.t, fertig: t >= z.gegnerLauf.t };
     }
     if (!z.fern) return null;
     /* Zwischen zwei Meldungen wird mit dem letzten Tempo weitergerechnet —
@@ -416,7 +332,6 @@ const rennen = (function () {
     const alter = Math.max(0, Math.min(0.6, t - (z.fern.t || 0)));
     return {
       s: Math.min(physik.STRECKE, (z.fern.s || 0) + (z.fern.v || 0) * alter),
-      versatz: z.fern.versatz || 0,
       aus: !!z.fern.aus,
       fertig: !!z.fern.fertig,
     };
@@ -529,7 +444,6 @@ const rennen = (function () {
         t: Math.round(z.lauf.t * 1000) / 1000,
         s: Math.round(z.lauf.s * 100) / 100,
         v: Math.round(z.lauf.v * 100) / 100,
-        versatz: Math.round(z.lauf.versatz * 1000) / 1000,
         fertig: !!z.lauf.fertig,
         aus: !!z.lauf.aus,
       });
@@ -578,7 +492,6 @@ const rennen = (function () {
       noten: l ? { perfekt: l.noten.perfekt, gut: l.noten.gut, zufrueh: l.noten.zufrueh, ueberdreht: l.noten.ueberdreht } : null,
       waerme: z.waerme === null ? null : Math.round(z.waerme * 1000) / 1000,
       burnout: physik.burnoutNote(z.waerme),
-      spurVerlust: l ? Math.round(l.spurVerlust * 100) / 100 : 0,
       spitze: l ? Math.round(l.v * 3.6) : 0,
     };
     const gegnerErgebnis = z.gegnerLauf ? {
@@ -591,7 +504,6 @@ const rennen = (function () {
       noten: z.gegnerLauf.noten,
       waerme: z.gegnerLauf.waerme,
       burnout: physik.burnoutNote(z.gegnerLauf.waerme),
-      spurVerlust: Math.round(z.gegnerLauf.spurVerlust * 100) / 100,
       spitze: Math.round(z.gegnerLauf.v * 3.6),
     } : null;
     const fertig = z.opt.fertig;
@@ -656,13 +568,13 @@ const rennen = (function () {
 
     /* Autos: das weiter entfernte zuerst, damit es hinten liegt. */
     const gegner = gegnerStand(t);
-    const meinU = -0.5 + (z.lauf ? z.lauf.versatz : 0) * 0.44;
+    const meinU = -0.5;
     const meinD = KAMERA_ABSTAND;
     const wagen = [{ d: meinD, u: meinU, lack: z.opt.meinLack, name: null, aus: z.lauf && z.lauf.aus }];
     if (gegner) {
       wagen.push({
         d: KAMERA_ABSTAND + (gegner.s - meineS),
-        u: 0.5 + (gegner.versatz || 0) * 0.44,
+        u: 0.5,
         lack: z.opt.gegnerLack,
         name: z.opt.gegnerName,
         aus: gegner.aus,
@@ -674,15 +586,12 @@ const rennen = (function () {
     zeichneKopfleiste(g, b, meineS, gegner);
     if (z.lauf && z.lauf.gestartet && !z.lauf.fertig) {
       zeichneTacho(g, b, h);
-      zeichneSpurbalken(g, b, h);
-      zeichneWarnung(g, b, h, t);
       /* Liegt der Gegner hinter der Kamera, sieht man ihn nicht mehr. */
       if (gegner && Math.abs(gegner.s - meineS) > 2) zeichneGegnerHinweis(g, b, h, gegner.s - meineS);
     }
     if (t < T_STAGING && (!z.plan.burnoutVon || t < z.plan.burnoutVon)) zeichneVorstellung(g, b, h, t);
     if (t < 0) zeichneAmpel(g, b, h, t);
     if (!z.burnoutFertig && t >= z.plan.burnoutVon && t < z.plan.burnoutBis) zeichneBurnout(g, b, h, t);
-    zeichneJoystick(g, b, h, t);
     zeichneHebel(g, b, h, t);
     zeichneMeldung(g, b, h);
     zeichneUhr(g, b, h, t);
@@ -921,9 +830,9 @@ const rennen = (function () {
     /* ⚠️ Weit genug von der Ecke weg: mit rad 46 bei (b-62, h-58) hing der
        Ring halb außerhalb des Bildes. */
     const rad = Math.min(46, h * 0.14);
-    /* ⚠️ Nach links geschoben: in der Ecke haengt jetzt der Schalthebel. */
-    const hb = hebelBahn();
-    const cx = hb.x - hb.br / 2 - rad - 40, cy = h - rad - 26;
+    /* ⚠️ Unten LINKS: rechts haengt der Schalthebel, und seit die Lenkung
+       weg ist, ist die linke Ecke frei geworden. */
+    const cx = rad + 30, cy = h - rad - 30;
     const von = Math.PI * 0.75, bis = Math.PI * 2.25;
     const f = physik.fenster(l.auto, l.gang);
 
@@ -969,76 +878,14 @@ const rennen = (function () {
     g.restore();
   }
 
-  /** Der Pfeil, der kurz vor einem Ausbrecher blinkt. */
-  function zeichneWarnung(g, b, h, t) {
-    const l = z.lauf;
-    let richtung = 0, dringend = 0;
-    for (const zg of l.zuege) {
-      if (l.t >= zg.zeit - physik.WARNUNG && l.t < zg.zeit) { richtung = zg.richtung; dringend = 1; }
-      else if (l.t >= zg.zeit && l.t < zg.zeit + physik.ZUG_DAUER) { richtung = zg.richtung; dringend = 2; }
-    }
-    /* Auch ohne aktiven Zug: wer schief steht, soll es sehen. */
-    if (!richtung && Math.abs(l.versatz) > 0.18) { richtung = l.versatz > 0 ? 1 : -1; dringend = 2; }
-    if (!richtung) return;
-
-    /* Gegenlenken heißt: in die ANDERE Richtung tippen. */
-    const zeigt = -richtung;
-
-    /* ⚠️ Der Pfeil sitzt ÜBER DER HÄLFTE DES SCHIEBERS, in die der Daumen
-       soll — nicht mittig im Bild. Der Schieber liegt ganz links (bis 45 %
-       der Breite); ein Pfeil in der Bildmitte, der nach rechts zeigt,
-       schickte den Daumen auf die Gasfläche. */
-    const jo = joystick();
-    const x = jo.x + zeigt * (jo.r + 46);
-    const y = jo.y;
-    const gr = Math.min(b * 0.085, h * 0.13);
-    const blink = dringend === 1 ? (Math.floor(t * 8) % 2 === 0 ? 1 : 0.3) : 1;
-
-    g.save();
-    g.globalAlpha = blink * (dringend === 2 ? 0.95 : 0.75);
-    /* Heller Schein über der Schieberhälfte, damit sie als Ziel lesbar wird */
-    g.fillStyle = dringend === 2 ? 'rgba(224,83,63,0.16)' : 'rgba(245,165,36,0.12)';
-    const j = joystick();
-    g.beginPath();
-    g.arc(j.x, j.y, j.r + 16, zeigt < 0 ? Math.PI * 0.5 : -Math.PI * 0.5, zeigt < 0 ? Math.PI * 1.5 : Math.PI * 0.5);
-    g.fill();
-    g.fillStyle = dringend === 2 ? FARBEN.schlecht : FARBEN.akzent;
-    g.beginPath();
-    g.moveTo(x + zeigt * gr, y);
-    g.lineTo(x - zeigt * gr * 0.45, y - gr * 0.8);
-    g.lineTo(x - zeigt * gr * 0.45, y + gr * 0.8);
-    g.closePath();
-    g.fill();
-    g.restore();
-  }
-
-  /**
-   * Spurbalken ganz oben: wie nah man an der Linie ist.
-   * ⚠️ Nicht mitten aufs Bild. Dort lag er quer über der Fahrbahn und
-   * verdeckte genau die Stelle, auf die man beim Lenken schaut.
-   */
-  function zeichneSpurbalken(g, b, h) {
-    const l = z.lauf;
-    const bw = b * 0.26, bx = b / 2 - bw / 2, by = 44, bh = 7;
-    g.fillStyle = 'rgba(8,7,6,0.55)';
-    rundesRechteck(g, bx - 4, by - 4, bw + 8, bh + 8, 6); g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.14)';
-    rundesRechteck(g, bx, by, bw, bh, 3); g.fill();
-    /* Die Linien links und rechts, die man nicht berühren darf */
-    g.fillStyle = FARBEN.schlecht;
-    g.fillRect(bx, by, 2, bh);
-    g.fillRect(bx + bw - 2, by, 2, bh);
-    const pos = bx + bw / 2 + (Math.max(-1, Math.min(1, l.versatz)) * bw) / 2;
-    g.fillStyle = Math.abs(l.versatz) > 0.7 ? FARBEN.schlecht : FARBEN.akzent;
-    g.beginPath(); g.arc(pos, by + bh / 2, 6.5, 0, Math.PI * 2); g.fill();
-  }
-
-  /** Kleiner Hinweis, wenn der Gegner hinter einem liegt und nicht im Bild ist. */
   function zeichneGegnerHinweis(g, b, h, abstand) {
     const text = Math.round(Math.abs(abstand)) + ' m ' + (abstand < 0 ? 'zurück' : 'voraus');
     g.font = '700 13px -apple-system, "Segoe UI", Roboto, sans-serif';
     g.textAlign = 'center';
-    const x = b * 0.88, y = 78;
+    /* ⚠️ Links neben den Hebel, nicht darueber. Bei b*0.88 lag der Hinweis
+       genau auf der GAS-Beschriftung des Hebels. */
+    const hb = hebelBahn();
+    const x = hb.x - hb.br / 2 - 70, y = 62;
     const tb = g.measureText(text).width;
     g.fillStyle = 'rgba(8,7,6,0.6)';
     rundesRechteck(g, x - tb / 2 - 10, y - 15, tb + 20, 22, 8); g.fill();
@@ -1127,54 +974,6 @@ const rennen = (function () {
   }
 
   /** Ganz dezent: wo ist links, wo ist rechts, wo ist Gas. */
-  /**
-   * Der Joystick unten links.
-   *
-   * ⚠️ ER IST IMMER SICHTBAR und der Knopf sitzt unter dem Daumen, nicht auf
-   * der Auslenkung des Autos. Steht er woanders als der Finger, liest sich
-   * das als Lenkung, die nicht reagiert - genau daran ist der Balken davor
-   * gescheitert.
-   */
-  function zeichneJoystick(g, b, h, t) {
-    const j = joystick();
-    const kx = j.x + (z.joyX || 0) * j.r;
-    const ky = j.y + (z.joyY || 0) * j.r;
-    const wirkt = z.lauf ? physik.lenkAuslenkung(z.lauf) : 0;
-
-    g.save();
-
-    /* Grundplatte */
-    g.fillStyle = 'rgba(8,7,6,0.30)';
-    g.beginPath(); g.arc(j.x, j.y, j.r + 16, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.16)';
-    g.lineWidth = 2;
-    g.beginPath(); g.arc(j.x, j.y, j.r, 0, Math.PI * 2); g.stroke();
-
-    /* Waagerechte Fuehrung - links und rechts ist, worauf es ankommt */
-    g.strokeStyle = 'rgba(255,255,255,0.14)';
-    g.lineWidth = 3;
-    g.beginPath();
-    g.moveTo(j.x - j.r, j.y); g.lineTo(j.x + j.r, j.y);
-    g.stroke();
-    g.fillStyle = 'rgba(255,255,255,0.30)';
-    g.fillRect(j.x - 1, j.y - j.r - 4, 2, 8);
-
-    /* Knopf */
-    g.fillStyle = wirkt === 0 ? FARBEN.leise : FARBEN.akzent;
-    g.beginPath(); g.arc(kx, ky, 25, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 2;
-    g.beginPath(); g.arc(kx, ky, 25, 0, Math.PI * 2); g.stroke();
-
-    if (t < 1.4) {
-      g.textAlign = 'center';
-      g.fillStyle = FARBEN.text;
-      g.font = '700 13px -apple-system, "Segoe UI", Roboto, sans-serif';
-      g.fillText('LENKEN', j.x, j.y - j.r - 22);
-    }
-    g.textAlign = 'left';
-    g.restore();
-  }
-
   /**
    * Der Schalthebel rechts.
    *
@@ -1279,11 +1078,11 @@ const rennen = (function () {
     laeuft: laeuft,
     setzeGegner: setzeGegner,
     /* Nur zum Nachmessen von außen (Konsole, Prüflauf): der laufende Wagen,
-       die Ausbrecher und die Uhr. Wird vom Spiel selbst nicht benutzt. */
+       und die Uhr. Wird vom Spiel selbst nicht benutzt. */
     stand: function () { return z ? { lauf: z.lauf, t: tRel(), waerme: z.waerme, phase: z.phase, plan: z.plan } : null; },
     /* Die echte Geometrie der Bedienelemente. Der Pruefstand rechnet sie
        NICHT nach - genau diese Doppelrechnung hat den Schieber kaputt
        gemacht (gezeichnet 4,5-40,5 %, getippt 0-45 %). */
-    masze: function () { return z ? { joy: joystick(), hebel: hebelBahn(), padBis: z.breite * PAD_ANTEIL } : null; },
+    masze: function () { return z ? { hebel: hebelBahn() } : null; },
   };
 })();

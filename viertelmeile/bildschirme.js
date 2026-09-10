@@ -38,7 +38,6 @@ const bildschirme = (function () {
     if (e.fehlstart) return 'Frühstart';
     if (e.nichtGestartet) return 'nicht losgefahren';
     if (e.abgebrochen) return 'App weggedrückt';
-    if (e.aus) return 'Spur verlassen';
     return zeit(e.gesamt);
   }
 
@@ -209,7 +208,6 @@ const bildschirme = (function () {
     h += wert('Burnout', bn[e.burnout] || '—', e.burnout === 'perfekt' ? 'gut' : (e.burnout === 'aus' ? '' : 'schlecht'));
     const n = e.noten || { perfekt: 0, gut: 0, zufrueh: 0, ueberdreht: 0 };
     h += wert('Schalten', n.perfekt + ' perfekt · ' + n.gut + ' gut · ' + (n.zufrueh + n.ueberdreht) + ' daneben', n.zufrueh + n.ueberdreht === 0 ? 'gut' : 'schlecht');
-    h += wert('Spurverlust', (e.spurVerlust || 0).toFixed(1) + ' m/s', (e.spurVerlust || 0) < 2 ? 'gut' : 'schlecht');
     h += wert('Spitze', (e.spitze || 0) + ' km/h', '');
     h += '</div></div>';
     return h;
@@ -385,7 +383,7 @@ const bildschirme = (function () {
 
   function hilfe() {
     let h = '<h1>Anleitung</h1>';
-    h += '<div class="hinweis info">Handy quer halten. <b>Links der Joystick</b> zum Lenken, <b>rechts der Schalthebel</b>. Oben ist Gas, unten ist ausgekuppelt.</div>';
+    h += '<div class="hinweis info">Handy quer halten. Es gibt nur <b>eine</b> Bedienung: den <b>Schalthebel</b>. Oben ist Gas, unten ist ausgekuppelt. Anfassen darfst du ihn überall auf dem Bild — nur die <b>Höhe</b> deines Fingers zählt.</div>';
 
     h += '<div class="karte"><h3>1. Burnout</h3>';
     h += '<p>Vor der Ampel: den <b>Schalthebel nach unten ziehen</b> und halten. Ein Balken füllt sich — das sind die Reifen, die warm werden. Im <b>grünen Bereich wieder hochziehen</b>.</p>';
@@ -404,25 +402,15 @@ const bildschirme = (function () {
     h += '<p class="leise">Ganz nach oben musst du dabei nicht: <b>ein kurzes Stück zurück reicht</b>, dann liegt wieder Gas an. Und falls du den Hebel unten vergisst, federt er nach einer knappen halben Sekunde von allein hoch. Solange kein Gas ankommt, wird der Knopf <b>rot</b> und daneben steht „KEIN GAS".</p>';
     h += '<p class="leise">Der Motorton steigt mit der Drehzahl. Wer auf den Ton hört, muss nicht auf den Tacho schauen.</p></div>';
 
-    h += '<div class="karte"><h3>4. Lenken</h3>';
-    h += '<p>Unten links liegt ein <b>Joystick</b>. <b>Wo dein Daumen liegt, dahin lenkt das Auto</b> — und zwar sofort.</p>';
-    h += '<div class="hinweis info" style="margin:8px 0"><b>Ganz links = voll links. Mitte = geradeaus. Ganz rechts = voll rechts.</b><br>Dazwischen alles anteilig. Finger weg = geradeaus.</div>';
-    h += '<p>Du kannst <b>hintippen</b> oder den Daumen <b>hin und her schieben</b>. Beides geht, und der Knopf zeigt dir immer, wo du stehst.</p>';
-    h += '<p class="leise">Zwei- bis dreimal pro Rennen zieht das Auto zur Seite, jeweils knapp zwei Sekunden lang. Ein Pfeil warnt vorher und zeigt, wohin du sollst.</p>';
-    h += '<p class="leise">Etwa der halbe Weg nach außen <b>hält</b> den Zug auf. Weiter außen holst du das Auto <b>zurück</b>. Oben in der Mitte zeigt ein Punkt, wo du in der Spur stehst.</p>';
-    h += '<p class="hinweis info" style="margin:8px 0">Zu weit zu lenken kostet dich <b>nie</b> das Rennen — die Lenkung schiebt dich nicht über die andere Linie. Verlieren kannst du nur, wenn du gar nicht reagierst oder in die falsche Richtung lenkst.</p>';
-    h += '<p class="leise">Spät reagiert = du wirst langsamer. Gar nicht reagiert = du berührst die Linie und hast verloren.</p>';
-    h += '<p class="leise">Beide Fahrer bekommen denselben Ausbrecher zur selben Zeit. Da hat niemand Pech.</p></div>';
-
-    h += '<div class="karte"><h3>5. Wer gewinnt</h3>';
-    h += '<p>Die <b>Gesamtzeit</b> entscheidet: Reaktion plus Fahrzeit. Wer die Spur verlässt oder zu früh startet, verliert.</p>';
+    h += '<div class="karte"><h3>4. Wer gewinnt</h3>';
+    h += '<p>Die <b>Gesamtzeit</b> entscheidet: Reaktion plus Fahrzeit. Wer zu früh startet, verliert sofort.</p>';
     h += '<p class="leise">Beide fahren im selben Rennen <b>dasselbe Auto</b>. Welches, das wechselt von Runde zu Runde. Die Lackierung darf sich jeder selbst aussuchen, sie ändert nichts.</p></div>';
 
     h += '<div class="karte"><h3>Die Autos</h3>';
     for (const a of autos.LISTE) {
       h += '<div class="auto-zeile"><span class="icon">' + a.icon + '</span><div class="txt"><b>' + esc(a.name) + '</b><small>' + esc(a.kurz) + '</small>';
-      const wieOft = a.zuege[0] === a.zuege[1] ? a.zuege[0] + ' mal' : a.zuege[0] + ' bis ' + a.zuege[1] + ' mal';
-      h += '<small class="leise">' + a.gaenge.length + ' Gänge · zieht ' + wieOft + ' zur Seite</small></div></div>';
+      const spitze = Math.round(a.gaenge[a.gaenge.length - 1].vMax * 3.6);
+      h += '<small class="leise">' + a.gaenge.length + ' Gänge · bis rund ' + spitze + ' km/h</small></div></div>';
     }
     return h + '</div>';
   }

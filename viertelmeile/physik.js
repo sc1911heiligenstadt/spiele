@@ -9,9 +9,11 @@
    rechnet aber dieselbe Fahrt — sonst hätte das schnellere Gerät einen
    Vorteil, und genau das darf ein Turnier nicht haben.
 
-   ⚠️ ALLES AUS DER SAAT. Wo das Auto zieht und wie stark, kommt aus einer
-   Zahl, die der Gastgeber für das Rennen würfelt und beiden Fahrern
-   schickt. Beide bekommen also dieselben Ausbrecher zur selben Zeit.
+   ⚠️ GEFAHREN WIRD NUR NOCH LÄNGS. Das seitliche Ausbrechen und die Lenkung
+   sind am 2026-09-10 komplett entfernt worden (Michel: „nehmen wir das
+   Lenken raus, das funktioniert nicht so gut"). Übrig bleiben die drei
+   Dinge, die ein Drag Race ausmachen: Burnout, Reaktion an der Ampel und
+   Schalten. `saat` wandert nur noch als Kennzeichen des Rennens mit.
    ========================================================================== */
 
 const physik = (function () {
@@ -29,58 +31,6 @@ const physik = (function () {
   const SCHUB = 0.8;            // m/s Extra für einen perfekten Treffer
 
   /* ----------------------------------------------------------------------
-     Seitliches Ausbrechen
-     ----------------------------------------------------------------------
-     ⚠️ HIER WIRD TEMPO GESETZT, NICHT KRAFT. Der erste Entwurf beschleunigte
-     die Seitwärtsbewegung (Kraft, Dämpfung, Rückstellung — ein Feder-Masse-
-     System). Das fühlt sich beim Fahren wie ein Fehler an: hält man dagegen,
-     dauert es, bis überhaupt etwas passiert, und dann schießt das Auto über
-     die Mitte hinaus und man muss auf die andere Seite. Gemessen kam ein
-     Fahrer, der nach einer halben Sekunde gegenhält, in vier von zehn Fällen
-     trotzdem über die Linie — und zwar UNABHÄNGIG davon, wie stark man das
-     Lenken machte: mehr Kraft hieß nur mehr Übersteuern.
-
-     Jetzt bestimmen Zug und Lenken direkt, wie schnell das Auto zur Seite
-     wandert. Halten bringt es sofort zurück, Loslassen stoppt es sofort. Kein
-     Nachschwingen, kein Gegenpendeln — und man kann sich ausrechnen, was
-     passiert, während man es tut. `ANSPRECH` glättet nur die Optik.
-     ---------------------------------------------------------------------- */
-  const ZUG_TEMPO = 0.70;       // Bahnbreiten je Sekunde, wenn es zieht
-  /* Bei knapp halbem Schieber (0,46) hält man den Zug genau auf — das ist der
-     Punkt, den der Daumen suchen soll. Voller Ausschlag holt das Auto mit
-     0,86 je Sekunde zurück. */
-  const LENK_TEMPO = 1.60;      // Bahnbreiten je Sekunde bei vollem Ausschlag
-  const RUECK_TEMPO = 0.10;     // sanftes Zurückwandern zur Mitte
-
-  /* ⚠️ ÜBERSTEUERN DARF DAS RENNEN NIE KOSTEN. Ohne diese Grenze warf ein
-     voll gehaltener Schieber das Auto über die GEGENÜBERLIEGENDE Linie: 157
-     von 180 Prüffahrten verloren, obwohl der Fahrer die ganze Zeit korrekt
-     gegengehalten hat. Genau das ist die Frustration, um die es hier geht —
-     man tut das Richtige und wird dafür bestraft.
-     Jetzt bremst die EIGENE Lenkung sanft ab, sobald sie über `LENK_GRENZE`
-     hinausschieben würde. Der ZUG kennt diese Grenze nicht: wer gar nicht
-     gegenhält, landet weiterhin an der Linie, und wer in die falsche Richtung
-     lenkt, wird vom Zug trotzdem hinausgeschoben.
-     Kurz: verlieren kann man nur durchs Nichtstun oder durch die falsche
-     Richtung — nie durch zu viel des Richtigen. */
-  const LENK_GRENZE = 0.66;     // so weit schiebt die eigene Lenkung höchstens
-  const LENK_BREMSWEG = 0.25;   // auf dieser Strecke davor wird sie weich
-  const ANSPRECH = 0.04;        // Sekunden, bis das Auto der Vorgabe folgt (fast unmittelbar)
-  const SCHLEIFEN = 30;         // Tempoverlust beim Schleifen (quadratisch)
-  const SCHLEIF_AB = 0.10;      // darunter kostet ein Wackeln nichts
-  const MIN_LENK = 0.06;        // so lange wirkt auch der kürzeste Tipper
-  /* ⚠️ LANG UND SANFT, NICHT KURZ UND BRUTAL. Erst dauerte ein Ausbrecher
-     1,25 s und war so stark, dass er in dieser Zeit bis über die Linie reichte.
-     Damit war jede Zehntelsekunde Verzug tödlich: wer erst nach einer halben
-     Sekunde griff, stand schon bei 0,6 und kippte beim kleinsten Nachfassen
-     hinaus. Jetzt zieht es fast doppelt so lang, dafür halb so schnell — wer
-     gar nichts tut, landet genauso an der Linie, aber man hat Zeit, in Ruhe
-     dagegenzuhalten. Genau das ist der Unterschied zwischen "zackig" und
-     "unmöglich". */
-  const ZUG_DAUER = 1.80;       // wie lange ein Ausbrecher dauert
-  const WARNUNG = 0.90;         // so früh blinkt der Pfeil
-
-  /* ----------------------------------------------------------------------
      Zufall mit Saat — beide Geräte müssen dasselbe würfeln
      ---------------------------------------------------------------------- */
 
@@ -92,39 +42,6 @@ const physik = (function () {
       z ^= z << 5; z >>>= 0;
       return z / 4294967296;
     };
-  }
-
-  /**
-   * Die Ausbrecher einer Fahrt. Zeitpunkte in Sekunden nach Grün.
-   * Gleiche Saat = gleiche Liste, auf beiden Handys.
-   */
-  function ausbrecher(saat, auto) {
-    const w = saatZufall(saat);
-    /* ⚠️ WIE OFT es zieht, hängt am Auto — WIE STARK nicht.
-       Erster Entwurf hatte es andersherum: das Muscle-Car zog stärker, der
-       Flitzer schwächer. Damit war das Versprechen „wer gar nicht gegenhält,
-       fliegt raus" beim Flitzer schlicht falsch — ein schwacher Zug lief aus,
-       ohne die Linie zu erreichen. Jetzt reicht JEDER ignorierte Zug bis über
-       die Linie, und die Autos unterscheiden sich in der Anzahl. */
-    const vonBis = (auto && auto.zuege) || [2, 4];
-    const anzahl = vonBis[0] + Math.floor(w() * (vonBis[1] - vonBis[0] + 1));
-    const liste = [];
-
-    /* Ein Fach je Ausbrecher, gewürfelt wird nur innerhalb des Fachs.
-       ⚠️ Der Spielraum ist um ZUG_DAUER gekürzt: ohne das konnten zwei
-       Ausbrecher überlappen, und zwei gleichzeitige Züge in dieselbe
-       Richtung sind nicht mehr zu halten — dann verliert man ohne Fehler. */
-    const fach = (9.4 - 1.6) / anzahl;
-    const spielraum = Math.max(0, fach - ZUG_DAUER - 0.2);
-    for (let i = 0; i < anzahl; i++) {
-      const t = 1.6 + i * fach + w() * spielraum;
-      liste.push({
-        zeit: Math.round(t * 100) / 100,
-        richtung: w() < 0.5 ? -1 : 1,
-        staerke: 0.95 + w() * 0.15,
-      });
-    }
-    return liste;
   }
 
   /* ----------------------------------------------------------------------
@@ -185,7 +102,6 @@ const physik = (function () {
     return {
       auto: auto,
       saat: saat,
-      zuege: ausbrecher(saat, auto),
       griff: griffAusBurnout(waerme),
       waerme: waerme === undefined ? null : waerme,
 
@@ -196,12 +112,6 @@ const physik = (function () {
       leerlaufBis: -1,      // solange kein Vortrieb (Kupplung)
       gasAn: true,          // der Hebel steht oben
       hebelUnten: false,    // der Daumen hat ihn heruntergezogen
-      versatz: 0,           // seitlich, -1 bis 1
-      seitTempo: 0,
-      lenkStellung: 0,          // -1 ganz links … +1 ganz rechts, 0 geradeaus
-      lenkNachlauf: 0,          // Stellung, die ein kurzer Tipper nachwirken lässt
-      lenkBis: -1,              // bis wann der Nachlauf gilt
-      lenkAnZeit: -1,
 
       gestartet: false,
       reaktion: null,       // Sekunden nach Grün (negativ = Frühstart)
@@ -212,7 +122,6 @@ const physik = (function () {
       zielZeit: null,       // Sekunden ab Grün bis zur Ziellinie
 
       noten: { perfekt: 0, gut: 0, zufrueh: 0, ueberdreht: 0 },
-      spurVerlust: 0,       // wie viel Tempo das Schlingern gekostet hat (m/s)
     };
   }
 
@@ -280,68 +189,14 @@ const physik = (function () {
   }
 
   /**
-   * DIE LENKUNG IST EIN SCHIEBER, KEIN KNOPF.
-   *
-   * `stellung` liegt zwischen -1 (voll links) und +1 (voll rechts) und kommt
-   * unmittelbar daher, wo der Daumen im Lenkfeld liegt. 0 heißt geradeaus.
-   *
-   * ⚠️ ZWEI ANLÄUFE SIND HIER SCHON GESCHEITERT, BEIDE AN DERSELBEN SACHE:
-   * die Lenkung war ein Schalter mit zwei Stellungen, und man konnte nur
-   * „ganz" oder „gar nicht" gegenhalten.
-   *   1. Erst musste man TIPPEN — ein Tipper wirkte 0,3 s, ein Ausbrecher
-   *      dauerte 1,25 s, also fünfmal hämmern.
-   *   2. Dann durfte man HALTEN — besser, aber immer noch entweder volle
-   *      Kraft oder nichts, und die richtige von zwei Hälften musste man
-   *      erst suchen.
-   * Michel nach beiden Anläufen: unlenkbar. Jetzt entscheidet die STRECKE,
-   * die der Daumen zurücklegt, wie stark gelenkt wird — halbe Auslenkung
-   * hebt den Zug ungefähr auf, volle holt das Auto zurück. Man kann damit
-   * dosieren statt zu schalten, und es gibt keine zwei Felder mehr, sondern
-   * eine Achse.
-   */
-  function lenkeStellung(l, stellung) {
-    if (!l || l.fertig || l.aus || !l.gestartet) return;
-    let a = Number(stellung) || 0;
-    if (a > 1) a = 1;
-    if (a < -1) a = -1;
-    if (a !== 0) {
-      l.lenkStellung = a;
-      l.lenkNachlauf = a;
-      l.lenkAnZeit = l.t;
-      l.lenkBis = -1;
-      return;
-    }
-    /* Losgelassen. ⚠️ Der Mindest-Nachlauf zählt ab dem AUFSETZEN, nicht ab
-       dem Loslassen — sonst lenkt ein langer Halt beim Loslassen noch zwei
-       Zehntel weiter und schießt über die Mitte. */
-    if (l.lenkStellung === 0) return;
-    l.lenkStellung = 0;
-    l.lenkBis = l.lenkAnZeit + MIN_LENK;
-  }
-
-  /** Die wirksame Auslenkung: Schieberstellung, sonst der Nachlauf. */
-  function lenkAuslenkung(l) {
-    if (l.lenkStellung !== 0) return l.lenkStellung;
-    if (l.t < l.lenkBis) return l.lenkNachlauf;
-    return 0;
-  }
-
-  /* Bequemlichkeiten für alles, was nur „ganz links / ganz rechts / los"
-     kennt — der Bot, die Prüfstände und ein kurzer Tipper. */
-  function lenkeAn(l, richtung) { lenkeStellung(l, richtung < 0 ? -1 : 1); }
-  function lenkeAus(l) { lenkeStellung(l, 0); }
-  function lenke(l, richtung) { lenkeAn(l, richtung); lenkeAus(l); }
-
-  /**
    * Der Fuß geht vom Bremspedal. `versatzZuGruen` ist die Reaktionszeit in
    * Sekunden: negativ = vor Grün getippt (Frühstart), positiv = danach.
    *
    * ⚠️ `l.t` ZÄHLT AB GRÜN, NICHT AB DEM EIGENEN LOSFAHREN. Das Auto steht
    * die ersten `reaktion` Sekunden noch. Der erste Entwurf ließ es sofort
    * losrollen und schlug die Reaktion nur am Ende auf die Zeit — rechnerisch
-   * dasselbe, aber die Ausbrecher kamen dann bei jedem Fahrer zu einem
-   * anderen Zeitpunkt der Ampel. Zugesagt war: beide bekommen denselben Zug
-   * im selben Moment. Also läuft die Uhr für beide ab Grün.
+   * dasselbe, aber dann laufen auf zwei Handys zwei verschiedene Uhren, und
+   * jede Auswertung muss sie erst wieder gleichziehen.
    */
   function starte(l, versatzZuGruen) {
     if (l.reaktion !== null || l.fertig) return;
@@ -374,43 +229,6 @@ const physik = (function () {
 
     a -= LUFT * l.v * l.v * l.auto.luft;
 
-    /* --- Seitenrichtung --- */
-    let zug = 0;
-    for (const z of l.zuege) {
-      if (l.t >= z.zeit && l.t < z.zeit + ZUG_DAUER) zug += z.richtung * z.staerke;
-    }
-    const lenk = lenkAuslenkung(l);
-
-    /* Wunsch-Seitentempo aus Zug, Lenken und Selbstzentrierung … */
-    let lenkTeil = lenk * LENK_TEMPO;
-    if (lenkTeil !== 0) {
-      /* Lenkhilfe: wie viel Platz bleibt in der Richtung, in die gelenkt wird? */
-      const hin = lenkTeil > 0 ? 1 : -1;
-      const rest = LENK_GRENZE - hin * l.versatz;
-      if (rest <= 0) lenkTeil = 0;
-      else if (rest < LENK_BREMSWEG) lenkTeil *= rest / LENK_BREMSWEG;
-    }
-    const ziel = zug * ZUG_TEMPO + lenkTeil - l.versatz * RUECK_TEMPO;
-    /* … dem das Auto in `ANSPRECH` Sekunden folgt. */
-    l.seitTempo += (ziel - l.seitTempo) * Math.min(1, dt / ANSPRECH);
-    l.versatz += l.seitTempo * dt;
-
-    /* Schräg stehende Reifen schleifen — das kostet direkt Tempo, nicht Kraft.
-       ⚠️ Quadratisch, nicht linear. Linear war der erste Entwurf, und damit
-       kostete ein spät gehaltener Ausbrecher GAR NICHTS: das bisschen Verlust
-       holte die Beschleunigung sofort wieder auf, und wer früh gegenhielt,
-       zahlte durch sein eigenes Pendeln sogar mehr. Quadratisch ist ein
-       kleines Wackeln fast gratis und ein großer Ausschlag richtig teuer —
-       genau so herum soll es sich anfühlen. */
-    const schraeg = Math.abs(l.versatz);
-    if (schraeg > SCHLEIF_AB) {
-      const ueber = schraeg - SCHLEIF_AB;
-      const verlust = SCHLEIFEN * ueber * ueber * dt;
-      l.v -= verlust;
-      l.spurVerlust += verlust;
-    }
-    if (schraeg >= 1) { l.aus = true; l.fertig = true; l.fahrzeit = null; return; }
-
     l.v += a * dt;
     if (l.v < 0) l.v = 0;
     l.s += l.v * dt;
@@ -429,7 +247,7 @@ const physik = (function () {
    * Rechnet in festen Schritten bis zur Zielzeit weiter.
    *
    * `eingaben` ist eine nach Zeit sortierte Warteschlange von Tippern:
-   *   { zeit: Sekunden nach Grün, art: 'schalt' | 'lenk', richtung: -1|1 }
+   *   { zeit: Sekunden nach Grün, art: 'hebel', oben: true|false }
    * Sie wird dabei geleert.
    *
    * ⚠️ WARUM DIE TIPPER EINE ZEIT MITBRINGEN. Ein Tipper kommt vom
@@ -446,11 +264,7 @@ const physik = (function () {
       const bis = l.t + SCHRITT;
       while (eingaben && eingaben.length && eingaben[0].zeit <= bis) {
         const e = eingaben.shift();
-        if (e.art === 'lenkStellung') lenkeStellung(l, e.wert);
-        else if (e.art === 'lenkAn') lenkeAn(l, e.richtung);
-        else if (e.art === 'lenkAus') lenkeAus(l);
-        else if (e.art === 'lenk') lenke(l, e.richtung);
-        else if (e.art === 'hebel') hebel(l, e.oben);
+        if (e.art === 'hebel') hebel(l, e.oben);
         else if (e.art === 'gas') gas(l, e.an);
         else schalte(l);
       }
@@ -498,11 +312,7 @@ const physik = (function () {
   const api = {
     STRECKE: STRECKE,
     SCHRITT: SCHRITT,
-    ZUG_DAUER: ZUG_DAUER,
-    MIN_LENK: MIN_LENK,
-    WARNUNG: WARNUNG,
     saatZufall: saatZufall,
-    ausbrecher: ausbrecher,
     drehmoment: drehmoment,
     fenster: fenster,
     schaltNote: schaltNote,
@@ -513,11 +323,6 @@ const physik = (function () {
     schalte: schalte,
     hebel: hebel,
     gas: gas,
-    lenke: lenke,
-    lenkeAn: lenkeAn,
-    lenkeAus: lenkeAus,
-    lenkeStellung: lenkeStellung,
-    lenkAuslenkung: lenkAuslenkung,
     starte: starte,
     schritt: schritt,
     laufeBis: laufeBis,
