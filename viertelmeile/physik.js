@@ -41,20 +41,28 @@ const physik = (function () {
      passiert, während man es tut. `ANSPRECH` glättet nur die Optik.
      ---------------------------------------------------------------------- */
   const ZUG_TEMPO = 0.70;       // Bahnbreiten je Sekunde, wenn es zieht
-  const LENK_TEMPO = 1.05;      // Bahnbreiten je Sekunde beim Gegenhalten
+  /* Bei knapp halbem Schieber (0,46) hält man den Zug genau auf — das ist der
+     Punkt, den der Daumen suchen soll. Voller Ausschlag holt das Auto mit
+     0,86 je Sekunde zurück. */
+  const LENK_TEMPO = 1.60;      // Bahnbreiten je Sekunde bei vollem Ausschlag
   const RUECK_TEMPO = 0.10;     // sanftes Zurückwandern zur Mitte
+
+  /* ⚠️ ÜBERSTEUERN DARF DAS RENNEN NIE KOSTEN. Ohne diese Grenze warf ein
+     voll gehaltener Schieber das Auto über die GEGENÜBERLIEGENDE Linie: 157
+     von 180 Prüffahrten verloren, obwohl der Fahrer die ganze Zeit korrekt
+     gegengehalten hat. Genau das ist die Frustration, um die es hier geht —
+     man tut das Richtige und wird dafür bestraft.
+     Jetzt bremst die EIGENE Lenkung sanft ab, sobald sie über `LENK_GRENZE`
+     hinausschieben würde. Der ZUG kennt diese Grenze nicht: wer gar nicht
+     gegenhält, landet weiterhin an der Linie, und wer in die falsche Richtung
+     lenkt, wird vom Zug trotzdem hinausgeschoben.
+     Kurz: verlieren kann man nur durchs Nichtstun oder durch die falsche
+     Richtung — nie durch zu viel des Richtigen. */
+  const LENK_GRENZE = 0.72;     // so weit schiebt die eigene Lenkung höchstens
+  const LENK_BREMSWEG = 0.25;   // auf dieser Strecke davor wird sie weich
   const ANSPRECH = 0.12;        // Sekunden, bis das Auto der Vorgabe folgt
   const SCHLEIFEN = 30;         // Tempoverlust beim Schleifen (quadratisch)
   const SCHLEIF_AB = 0.10;      // darunter kostet ein Wackeln nichts
-  /* ⚠️ GELENKT WIRD DURCH HALTEN, NICHT DURCH TIPPEN.
-     Der erste Entwurf ließ einen Tipper 0,30 s wirken — ein Ausbrecher dauert
-     aber 1,25 s. Man musste also fünfmal hintereinander auf ein schmales Feld
-     hämmern, während gleichzeitig der Tacho im Blick bleiben soll. Michels
-     Urteil nach dem ersten Fahren: „das Auto in der Spur halten ist
-     unmöglich". Der Prüf-Fahrer hatte es nicht gemerkt, weil er achtmal je
-     Ausbrecher tippte — was kein Daumen tut.
-     Jetzt wirkt das Lenkfeld, SOLANGE der Finger daraufliegt. `MIN_LENK` ist
-     nur die Untergrenze, damit ein kurzer Tipper nicht wirkungslos bleibt. */
   const MIN_LENK = 0.20;        // so lange wirkt auch der kürzeste Tipper
   /* ⚠️ LANG UND SANFT, NICHT KURZ UND BRUTAL. Erst dauerte ein Ausbrecher
      1,25 s und war so stark, dass er in dieser Zeit bis über die Linie reichte.
@@ -183,9 +191,9 @@ const physik = (function () {
       leerlaufBis: -1,      // solange kein Vortrieb (Kupplung)
       versatz: 0,           // seitlich, -1 bis 1
       seitTempo: 0,
-      lenkBis: -1,              // Nachlauf eines kurzen Tippers
-      lenkRichtung: 0,
-      lenkGehalten: false,      // Finger liegt gerade auf dem Lenkfeld
+      lenkStellung: 0,          // -1 ganz links … +1 ganz rechts, 0 geradeaus
+      lenkNachlauf: 0,          // Stellung, die ein kurzer Tipper nachwirken lässt
+      lenkBis: -1,              // bis wann der Nachlauf gilt
       lenkAnZeit: -1,
 
       gestartet: false,
@@ -230,39 +238,58 @@ const physik = (function () {
     return note;
   }
 
-  /** Der Finger geht auf das Lenkfeld und BLEIBT dort. */
-  function lenkeAn(l, richtung) {
-    if (l.fertig || l.aus || !l.gestartet) return;
-    const r = richtung < 0 ? -1 : 1;
-    if (l.lenkGehalten && l.lenkRichtung === r) return;   // liegt schon
-    l.lenkRichtung = r;
-    l.lenkGehalten = true;
-    l.lenkAnZeit = l.t;
-    l.lenkBis = -1;
-  }
-
   /**
-   * Der Finger geht wieder herunter.
+   * DIE LENKUNG IST EIN SCHIEBER, KEIN KNOPF.
    *
-   * ⚠️ DER MINDEST-NACHLAUF ZÄHLT AB DEM AUFSETZEN, NICHT AB DEM LOSLASSEN.
-   * Der erste Entwurf schob `lenkBis` bei jedem Bild auf „jetzt + 0,2 s" —
-   * beim Loslassen lenkte das Auto also noch zwei Zehntel weiter und schoss
-   * über die Mitte hinaus. Man musste sofort auf die andere Seite, kam wieder
-   * zu weit, und genau daraus entstand das Gefühl, die Spur sei nicht zu
-   * halten. Ein LANGER Halt hört jetzt sofort auf; nur ein kurzer Tipper
-   * wirkt seine 0,2 s zu Ende.
+   * `stellung` liegt zwischen -1 (voll links) und +1 (voll rechts) und kommt
+   * unmittelbar daher, wo der Daumen im Lenkfeld liegt. 0 heißt geradeaus.
+   *
+   * ⚠️ ZWEI ANLÄUFE SIND HIER SCHON GESCHEITERT, BEIDE AN DERSELBEN SACHE:
+   * die Lenkung war ein Schalter mit zwei Stellungen, und man konnte nur
+   * „ganz" oder „gar nicht" gegenhalten.
+   *   1. Erst musste man TIPPEN — ein Tipper wirkte 0,3 s, ein Ausbrecher
+   *      dauerte 1,25 s, also fünfmal hämmern.
+   *   2. Dann durfte man HALTEN — besser, aber immer noch entweder volle
+   *      Kraft oder nichts, und die richtige von zwei Hälften musste man
+   *      erst suchen.
+   * Michel nach beiden Anläufen: unlenkbar. Jetzt entscheidet die STRECKE,
+   * die der Daumen zurücklegt, wie stark gelenkt wird — halbe Auslenkung
+   * hebt den Zug ungefähr auf, volle holt das Auto zurück. Man kann damit
+   * dosieren statt zu schalten, und es gibt keine zwei Felder mehr, sondern
+   * eine Achse.
    */
-  function lenkeAus(l) {
-    if (!l || !l.lenkGehalten) return;
-    l.lenkGehalten = false;
+  function lenkeStellung(l, stellung) {
+    if (!l || l.fertig || l.aus || !l.gestartet) return;
+    let a = Number(stellung) || 0;
+    if (a > 1) a = 1;
+    if (a < -1) a = -1;
+    if (a !== 0) {
+      l.lenkStellung = a;
+      l.lenkNachlauf = a;
+      l.lenkAnZeit = l.t;
+      l.lenkBis = -1;
+      return;
+    }
+    /* Losgelassen. ⚠️ Der Mindest-Nachlauf zählt ab dem AUFSETZEN, nicht ab
+       dem Loslassen — sonst lenkt ein langer Halt beim Loslassen noch zwei
+       Zehntel weiter und schießt über die Mitte. */
+    if (l.lenkStellung === 0) return;
+    l.lenkStellung = 0;
     l.lenkBis = l.lenkAnZeit + MIN_LENK;
   }
 
-  /** Kurzer Tipper: an und sofort wieder los — wirkt `MIN_LENK` lang. */
-  function lenke(l, richtung) {
-    lenkeAn(l, richtung);
-    lenkeAus(l);
+  /** Die wirksame Auslenkung: Schieberstellung, sonst der Nachlauf. */
+  function lenkAuslenkung(l) {
+    if (l.lenkStellung !== 0) return l.lenkStellung;
+    if (l.t < l.lenkBis) return l.lenkNachlauf;
+    return 0;
   }
+
+  /* Bequemlichkeiten für alles, was nur „ganz links / ganz rechts / los"
+     kennt — der Bot, die Prüfstände und ein kurzer Tipper. */
+  function lenkeAn(l, richtung) { lenkeStellung(l, richtung < 0 ? -1 : 1); }
+  function lenkeAus(l) { lenkeStellung(l, 0); }
+  function lenke(l, richtung) { lenkeAn(l, richtung); lenkeAus(l); }
 
   /**
    * Der Fuß geht vom Bremspedal. `versatzZuGruen` ist die Reaktionszeit in
@@ -311,10 +338,18 @@ const physik = (function () {
     for (const z of l.zuege) {
       if (l.t >= z.zeit && l.t < z.zeit + ZUG_DAUER) zug += z.richtung * z.staerke;
     }
-    const lenk = (l.lenkGehalten || l.t < l.lenkBis) ? l.lenkRichtung : 0;
+    const lenk = lenkAuslenkung(l);
 
     /* Wunsch-Seitentempo aus Zug, Lenken und Selbstzentrierung … */
-    const ziel = zug * ZUG_TEMPO + lenk * LENK_TEMPO - l.versatz * RUECK_TEMPO;
+    let lenkTeil = lenk * LENK_TEMPO;
+    if (lenkTeil !== 0) {
+      /* Lenkhilfe: wie viel Platz bleibt in der Richtung, in die gelenkt wird? */
+      const hin = lenkTeil > 0 ? 1 : -1;
+      const rest = LENK_GRENZE - hin * l.versatz;
+      if (rest <= 0) lenkTeil = 0;
+      else if (rest < LENK_BREMSWEG) lenkTeil *= rest / LENK_BREMSWEG;
+    }
+    const ziel = zug * ZUG_TEMPO + lenkTeil - l.versatz * RUECK_TEMPO;
     /* … dem das Auto in `ANSPRECH` Sekunden folgt. */
     l.seitTempo += (ziel - l.seitTempo) * Math.min(1, dt / ANSPRECH);
     l.versatz += l.seitTempo * dt;
@@ -370,7 +405,8 @@ const physik = (function () {
       const bis = l.t + SCHRITT;
       while (eingaben && eingaben.length && eingaben[0].zeit <= bis) {
         const e = eingaben.shift();
-        if (e.art === 'lenkAn') lenkeAn(l, e.richtung);
+        if (e.art === 'lenkStellung') lenkeStellung(l, e.wert);
+        else if (e.art === 'lenkAn') lenkeAn(l, e.richtung);
         else if (e.art === 'lenkAus') lenkeAus(l);
         else if (e.art === 'lenk') lenke(l, e.richtung);
         else schalte(l);
@@ -435,6 +471,8 @@ const physik = (function () {
     lenke: lenke,
     lenkeAn: lenkeAn,
     lenkeAus: lenkeAus,
+    lenkeStellung: lenkeStellung,
+    lenkAuslenkung: lenkAuslenkung,
     starte: starte,
     schritt: schritt,
     laufeBis: laufeBis,

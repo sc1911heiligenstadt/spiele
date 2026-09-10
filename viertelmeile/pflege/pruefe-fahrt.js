@@ -511,6 +511,56 @@ for (const a of autos.LISTE) {
 }
 pruefe('ohne jeden Griff fliegt jedes Rennen raus', ohneGriffRaus === 180, ohneGriffRaus + ' von 180');
 
+/* --- Der Schieber muss anteilig wirken, nicht als Schalter ---------------- */
+
+/** Fährt mit fester Schieberstellung durch den ersten Ausbrecher. */
+function mitStellung(auto, saat, stellung, richtungGegenZug) {
+  const l = physik.neuerLauf(auto, saat, 0.95);
+  physik.starte(l, 0.180);
+  const zg = l.zuege[0];
+  let wache = 0, beiGriff = null, amEnde = null;
+  while (!l.fertig && !l.aus && wache++ < 20000) {
+    physik.schritt(l, physik.SCHRITT);
+    if (l.fertig || l.aus) break;
+    schalteWennOben(l, auto, null);
+    if (l.t >= zg.zeit + 0.35 && l.t < zg.zeit + physik.ZUG_DAUER) {
+      if (beiGriff === null) beiGriff = l.versatz;
+      const hin = richtungGegenZug ? -zg.richtung : zg.richtung;
+      physik.lenkeStellung(l, stellung * hin);
+    } else if (l.t >= zg.zeit + physik.ZUG_DAUER) {
+      if (amEnde === null) amEnde = l.versatz;
+      physik.lenkeStellung(l, 0);
+    }
+  }
+  return { lauf: l, zug: zg.richtung, beiGriff: beiGriff, amEnde: amEnde === null ? l.versatz : amEnde };
+}
+
+{
+  const a = autos.nachId('muscle');
+  const kaum = mitStellung(a, 4242, 0.15, true);    // fast nichts
+  const halb = mitStellung(a, 4242, 0.46, true);    // Haltepunkt
+  const voll = mitStellung(a, 4242, 1.00, true);    // Vollausschlag
+  /* ⚠️ VORZEICHENBEHAFTET, in Zugrichtung gemessen — nicht als Abstand zur
+     Mitte. Mit dem Abstand gerechnet sah ein Vollausschlag, der das Auto von
+     +0,17 auf -0,61 zurückholte, wie ein Abtreiben aus: er hat die Mitte ja
+     überquert. Gemessen wird, wie weit der Zug den Wagen noch bewegt hat. */
+  const wanderung = function (r) { return (r.amEnde - r.beiGriff) * r.zug; };
+  console.log('  Schieber 0,15: Versatz ' + kaum.beiGriff.toFixed(2) + ' -> ' + kaum.amEnde.toFixed(2));
+  console.log('  Schieber 0,46: Versatz ' + halb.beiGriff.toFixed(2) + ' -> ' + halb.amEnde.toFixed(2));
+  console.log('  Schieber 1,00: Versatz ' + voll.beiGriff.toFixed(2) + ' -> ' + voll.amEnde.toFixed(2));
+  pruefe('wenig Schieber bremst den Zug nur, hält ihn aber nicht', wanderung(kaum) > 0.10, wanderung(kaum).toFixed(2) + ' weiter abgetrieben');
+  pruefe('knapp halber Schieber hält den Zug ungefähr auf', Math.abs(wanderung(halb)) < 0.12, wanderung(halb).toFixed(2));
+  pruefe('voller Schieber holt das Auto zurück', wanderung(voll) < -0.20, wanderung(voll).toFixed(2));
+  pruefe('mehr Schieber wirkt immer stärker als weniger', wanderung(kaum) > wanderung(halb) && wanderung(halb) > wanderung(voll));
+
+  /* Die Lenkhilfe darf die falsche Richtung NICHT retten. */
+  let falschRaus = 0;
+  for (let saat = 1; saat <= 40; saat++) {
+    if (mitStellung(a, saat * 7919, 1.00, false).lauf.aus) falschRaus++;
+  }
+  pruefe('wer in die falsche Richtung lenkt, fliegt trotzdem raus', falschRaus >= 38, falschRaus + ' von 40');
+}
+
 /* Ein kurzer Tipper muss trotzdem etwas bewirken — sonst wäre der Wechsel
    auf „halten" eine Falle für alle, die noch tippen. */
 {

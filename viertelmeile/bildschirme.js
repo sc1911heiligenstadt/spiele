@@ -385,7 +385,7 @@ const bildschirme = (function () {
 
   function hilfe() {
     let h = '<h1>Anleitung</h1>';
-    h += '<div class="hinweis info">Handy quer halten. Linker Daumen lenkt — <b>gedrückt halten, nicht tippen</b>. Rechter Daumen macht alles andere.</div>';
+    h += '<div class="hinweis info">Handy quer halten. Unten links ist ein <b>Lenk-Schieber</b>: wo der Daumen liegt, dahin lenkt das Auto. Rechter Daumen macht alles andere.</div>';
 
     h += '<div class="karte"><h3>1. Burnout</h3>';
     h += '<p>Vor der Ampel: <b>rechts halten</b>. Ein Balken füllt sich — das sind die Reifen, die warm werden. Im <b>grünen Bereich loslassen</b>.</p>';
@@ -402,11 +402,13 @@ const bildschirme = (function () {
     h += '<p class="leise">Der grüne Bereich wird mit jedem Gang <b>schmaler</b>. Ein ganz knapper Treffer gibt einen kleinen Extra-Schub.</p>';
     h += '<p class="leise">Der Motorton steigt mit der Drehzahl. Wer auf den Ton hört, muss nicht auf den Tacho schauen.</p></div>';
 
-    h += '<div class="karte"><h3>4. Spur halten</h3>';
-    h += '<p>Zwei- bis dreimal pro Rennen zieht das Auto zur Seite. Kurz vorher blinkt ein <b>Pfeil</b> und die Fläche leuchtet auf, die du drücken sollst.</p>';
-    h += '<p class="hinweis info" style="margin:8px 0"><b>Gedrückt halten, nicht tippen.</b> Solange dein Daumen unten links liegt, lenkt das Auto. Nimmst du ihn weg, hört es sofort auf.</p>';
-    h += '<p><b>Ganz links halten</b> lenkt nach links, <b>daneben halten</b> nach rechts. Du kannst den Daumen auch von einer Hälfte in die andere schieben.</p>';
-    h += '<p class="leise">Ein Zug dauert knapp zwei Sekunden. Halte dagegen, bis das Auto wieder mittig steht — oben in der Mitte zeigt ein Punkt, wo du stehst.</p>';
+    h += '<div class="karte"><h3>4. Lenken</h3>';
+    h += '<p>Unten links liegt ein <b>Schieber</b> über die halbe Bildbreite. <b>Wo dein Daumen liegt, dahin lenkt das Auto.</b></p>';
+    h += '<div class="hinweis info" style="margin:8px 0"><b>Links außen = voll links. Mitte = geradeaus. Rechts außen = voll rechts.</b><br>Dazwischen alles anteilig — je weiter außen, desto stärker. Finger weg = geradeaus.</div>';
+    h += '<p>Du kannst <b>hintippen</b> oder den Daumen <b>hin und her ziehen</b>. Beides geht, und der runde Knopf zeigt dir immer, wie weit du gerade einschlägst.</p>';
+    h += '<p class="leise">Zwei- bis dreimal pro Rennen zieht das Auto zur Seite, jeweils knapp zwei Sekunden lang. Ein Pfeil warnt vorher, und die Schieberhälfte leuchtet auf, in die du sollst.</p>';
+    h += '<p class="leise">Etwa der halbe Weg nach außen <b>hält</b> den Zug auf. Weiter außen holst du das Auto <b>zurück</b>. Oben in der Mitte zeigt ein Punkt, wo du in der Spur stehst.</p>';
+    h += '<p class="hinweis info" style="margin:8px 0">Zu weit zu lenken kostet dich <b>nie</b> das Rennen — die Lenkung schiebt dich nicht über die andere Linie. Verlieren kannst du nur, wenn du gar nicht reagierst oder in die falsche Richtung lenkst.</p>';
     h += '<p class="leise">Spät reagiert = du wirst langsamer. Gar nicht reagiert = du berührst die Linie und hast verloren.</p>';
     h += '<p class="leise">Beide Fahrer bekommen denselben Ausbrecher zur selben Zeit. Da hat niemand Pech.</p></div>';
 

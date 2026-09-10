@@ -30,8 +30,9 @@ const FUNKTIONEN = [
       'Burnout: vor der Ampel den rechten Daumen halten und im grünen Bereich loslassen — dann greifen die Reifen beim Start.',
       'Start: drei gelbe Lichter im festen Takt, dann grün. Die Reaktionszeit zählt voll zur Endzeit; wer vor Grün tippt, hat verloren.',
       'Schalten: den grünen Bereich am Tacho treffen. Er wird mit jedem Gang schmaler, ein ganz knapper Treffer gibt einen kleinen Schub.',
-      'Spur halten: zwei- bis dreimal je Rennen zieht das Auto zur Seite, ein Pfeil warnt vorher und die richtige Fläche leuchtet auf.',
-      'Gelenkt wird durch Halten, nicht durch Tippen: Daumen unten links auflegen und liegen lassen, bis das Auto wieder mittig steht. Wer gar nicht gegenhält, berührt die Linie und verliert.',
+      'Spur halten: zwei- bis dreimal je Rennen zieht das Auto zur Seite, ein Pfeil warnt vorher und die richtige Schieberhälfte leuchtet auf.',
+      'Gelenkt wird über einen Schieber unten links: wo der Daumen liegt, dahin lenkt das Auto — außen voll, in der Mitte geradeaus, dazwischen anteilig. Wer gar nicht gegenlenkt, berührt die Linie und verliert.',
+      'Zu weit zu lenken kostet nie das Rennen: die eigene Lenkung schiebt niemanden über die gegenüberliegende Linie.',
     ],
   },
   {
@@ -74,6 +75,20 @@ const FUNKTIONEN = [
 ];
 
 const CHANGELOG = [
+  {
+    version: '1.2',
+    groups: [
+      {
+        title: 'Lenken ist jetzt ein Schieber',
+        items: [
+          'Unten links liegt ein Schieber über die halbe Bildbreite: wo der Daumen liegt, dahin lenkt das Auto. Links außen voll links, Mitte geradeaus, rechts außen voll rechts, dazwischen anteilig. Man kann hintippen oder den Daumen hin und her ziehen.',
+          'Ein runder Knopf auf dem Schieber zeigt jederzeit, wie weit gerade eingeschlagen ist. Vorher gab es zwei Flächen zum Antippen, und man sah nie, was das Auto gerade tut.',
+          'Zu weit zu lenken kostet nie das Rennen: die eigene Lenkung schiebt niemanden über die gegenüberliegende Linie. Sie wird kurz davor weich. Verlieren kann man nur noch, wenn man gar nicht oder in die falsche Richtung lenkt.',
+          'Gemessen: ein einziger Griff je Ausbrecher reicht in 180 von 180 Rennen. Ohne Griff geht jedes Rennen verloren.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.1',
     groups: [

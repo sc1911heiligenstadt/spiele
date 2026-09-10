@@ -6,9 +6,11 @@
    hier ist nur Bild und Bedienung.
 
    BEDIENUNG, QUER GEHALTEN:
-     linke Bildhälfte  = lenken. GEDRÜCKT HALTEN, nicht tippen: links halten
-                         zieht nach links, daneben halten nach rechts.
-     rechte Bildhälfte = Burnout halten, bei Grün losfahren, dann schalten
+     linke 45 % = LENK-SCHIEBER. Wo der Daumen liegt, dahin lenkt das Auto:
+                  links außen voll links, Mitte geradeaus, rechts außen voll
+                  rechts. Ziehen dosiert, Tippen setzt sofort. Finger weg =
+                  geradeaus.
+     rechts     = Burnout halten, bei Grün losfahren, dann schalten
 
    ⚠️ JEDER TIPPER BRINGT SEINE ZEIT MIT. Er wird nicht beim nächsten Bild
    verrechnet, sondern in genau dem Rechenschritt, in dem er passiert ist
@@ -99,7 +101,7 @@ const rennen = (function () {
       raf: null,
       abgebrochen: false,
       nummer: ++laufNummer,
-      lenkRichtungJetzt: 0,
+      lenkStellungJetzt: 0,
     };
 
     /* Der Bot wird komplett vorausgerechnet — sein ganzer Lauf steht schon
@@ -144,15 +146,38 @@ const rennen = (function () {
      Tipper
      ---------------------------------------------------------------------- */
 
-  /* ⚠️ ZWEI FINGER, ZWEI ZEIGER. Links wird GEHALTEN (lenken), rechts wird
+  /* ⚠️ ZWEI FINGER, ZWEI ZEIGER. Links liegt der Lenk-Schieber, rechts wird
      gehalten (Burnout) und getippt (Start, Schalten) — oft gleichzeitig.
      Deshalb wird je Aufgabe die `pointerId` gemerkt; ein einzelner Merker
-     hätte den Daumen, der gerade schaltet, als „Lenken losgelassen"
+     hätte den Daumen, der gerade schaltet, als „Lenkung losgelassen"
      verbucht. */
   let gasZeiger = null;
   let lenkZeiger = null;
 
-  function zone(x) { return x < z.breite * 0.45 ? (x < z.breite * 0.225 ? 'links' : 'rechts') : 'gas'; }
+  const PAD_ANTEIL = 0.45;      // so breit ist der Lenk-Schieber (Anteil des Bildes)
+  const TOTZONE = 0.10;         // in der Mitte passiert nichts
+
+  function zone(x) { return x < z.breite * PAD_ANTEIL ? 'lenk' : 'gas'; }
+
+  /**
+   * Wo der Daumen im Lenkfeld liegt → Schieberstellung von -1 bis +1.
+   *
+   * ⚠️ ABSOLUT, NICHT RELATIV ZUM AUFSETZPUNKT. Ein Joystick, der dort
+   * entsteht, wo der Finger zuerst aufkommt, verlangt eine Ziehbewegung,
+   * bevor überhaupt etwas passiert — wer einfach links hintippt, hätte
+   * weiterhin nichts erreicht. So ist die linke Kante immer „ganz links",
+   * die Mitte immer „geradeaus", und Tippen UND Ziehen funktionieren beide.
+   */
+  function stellungAus(x) {
+    const halb = z.breite * PAD_ANTEIL / 2;
+    if (halb <= 0) return 0;
+    let a = (x - halb) / halb;
+    if (a > 1) a = 1;
+    if (a < -1) a = -1;
+    if (Math.abs(a) < TOTZONE) return 0;
+    const v = (Math.abs(a) - TOTZONE) / (1 - TOTZONE);
+    return a < 0 ? -v : v;
+  }
 
   function zeigerId(e) { return e.pointerId === undefined ? 1 : e.pointerId; }
 
@@ -187,9 +212,9 @@ const rennen = (function () {
     }
     if (!z.lauf || !z.lauf.gestartet) return;
     lenkZeiger = zeigerId(e);
-    z.lenkRichtungJetzt = zn === 'links' ? -1 : 1;
-    z.eingaben.push({ zeit: t, art: 'lenkAn', richtung: z.lenkRichtungJetzt });
-    ton.vibriere(14);
+    z.lenkStellungJetzt = stellungAus(x);
+    z.eingaben.push({ zeit: t, art: 'lenkStellung', wert: z.lenkStellungJetzt });
+    ton.vibriere(12);
   }
 
   function beiHoch(e) {
@@ -197,7 +222,8 @@ const rennen = (function () {
     const id = zeigerId(e);
     if (lenkZeiger !== null && id === lenkZeiger) {
       lenkZeiger = null;
-      z.eingaben.push({ zeit: tRel(), art: 'lenkAus' });
+      z.lenkStellungJetzt = 0;
+      z.eingaben.push({ zeit: tRel(), art: 'lenkStellung', wert: 0 });
     }
     if (gasZeiger !== null && id !== gasZeiger) return;
     gasZeiger = null;
@@ -212,22 +238,20 @@ const rennen = (function () {
     else if (note === 'verbrannt') melde('REIFEN VERBRANNT', 'schlecht');
   }
 
-  /** Der Daumen rutscht von einer Lenkhälfte in die andere. */
+  /** Der Daumen wandert im Lenkfeld — genau das IST das Lenken. */
   function beiZug(e) {
     if (!z || z.beendet || lenkZeiger === null) return;
     if (zeigerId(e) !== lenkZeiger) return;
     const rect = z.canvas.getBoundingClientRect();
-    const zn = zone((e.clientX !== undefined ? e.clientX : 0) - rect.left);
+    const x = (e.clientX !== undefined ? e.clientX : 0) - rect.left;
     const t = tRel();
-    if (zn === 'gas') {
-      lenkZeiger = null;
-      z.eingaben.push({ zeit: t, art: 'lenkAus' });
-      return;
-    }
-    const richtung = zn === 'links' ? -1 : 1;
-    if (z.lenkRichtungJetzt === richtung) return;
-    z.lenkRichtungJetzt = richtung;
-    z.eingaben.push({ zeit: t, art: 'lenkAn', richtung: richtung });
+    /* Nach rechts aus dem Feld gewandert: die Kante gilt weiter, der Finger
+       bleibt der Lenkfinger. Loslassen tut man mit dem Finger, nicht mit
+       dem Verlassen der Fläche. */
+    const wert = stellungAus(Math.min(x, z.breite * PAD_ANTEIL));
+    if (Math.abs(wert - z.lenkStellungJetzt) < 0.02) return;
+    z.lenkStellungJetzt = wert;
+    z.eingaben.push({ zeit: t, art: 'lenkStellung', wert: wert });
   }
 
   function haengeTipperAn() {
@@ -534,7 +558,7 @@ const rennen = (function () {
     if (t < T_STAGING && (!z.plan.burnoutVon || t < z.plan.burnoutVon)) zeichneVorstellung(g, b, h, t);
     if (t < 0) zeichneAmpel(g, b, h, t);
     if (!z.burnoutFertig && t >= z.plan.burnoutVon && t < z.plan.burnoutBis) zeichneBurnout(g, b, h, t);
-    zeichneZonen(g, b, h, t);
+    zeichneSchieber(g, b, h, t);
     zeichneMeldung(g, b, h);
     zeichneUhr(g, b, h, t);
   }
@@ -833,10 +857,10 @@ const rennen = (function () {
     /* Gegenlenken heißt: in die ANDERE Richtung tippen. */
     const zeigt = -richtung;
 
-    /* ⚠️ Der Pfeil sitzt ÜBER DER FLÄCHE, die gedrückt werden soll — nicht
-       mittig im Bild. Beide Lenkflächen liegen links (0 bis 22,5 % und 22,5
-       bis 45 % der Breite); ein Pfeil in der Bildmitte, der nach rechts
-       zeigt, schickte den Daumen auf die Gasfläche. */
+    /* ⚠️ Der Pfeil sitzt ÜBER DER HÄLFTE DES SCHIEBERS, in die der Daumen
+       soll — nicht mittig im Bild. Der Schieber liegt ganz links (bis 45 %
+       der Breite); ein Pfeil in der Bildmitte, der nach rechts zeigt,
+       schickte den Daumen auf die Gasfläche. */
     const x = zeigt < 0 ? b * 0.1125 : b * 0.3375;
     const y = h * 0.50;
     const gr = Math.min(b * 0.085, h * 0.13);
@@ -844,9 +868,9 @@ const rennen = (function () {
 
     g.save();
     g.globalAlpha = blink * (dringend === 2 ? 0.95 : 0.75);
-    /* Heller Schein, damit die Fläche selbst als Ziel lesbar wird */
+    /* Heller Schein über der Schieberhälfte, damit sie als Ziel lesbar wird */
     g.fillStyle = dringend === 2 ? 'rgba(224,83,63,0.16)' : 'rgba(245,165,36,0.12)';
-    g.fillRect(zeigt < 0 ? 0 : b * 0.225, h * 0.38, b * 0.225, h * 0.62);
+    g.fillRect(zeigt < 0 ? 0 : b * PAD_ANTEIL / 2, h * 0.38, b * PAD_ANTEIL / 2, h * 0.62);
     g.fillStyle = dringend === 2 ? FARBEN.schlecht : FARBEN.akzent;
     g.beginPath();
     g.moveTo(x + zeigt * gr, y);
@@ -855,7 +879,6 @@ const rennen = (function () {
     g.closePath();
     g.fill();
     g.restore();
-
   }
 
   /**
@@ -973,32 +996,62 @@ const rennen = (function () {
   }
 
   /** Ganz dezent: wo ist links, wo ist rechts, wo ist Gas. */
-  function zeichneZonen(g, b, h, t) {
-    const zeigen = t < 0.6;
+  /**
+   * Der Lenk-Schieber, unten links über die halbe Breite.
+   *
+   * ⚠️ ER IST IMMER SICHTBAR, nicht nur als Anfangshinweis. Vorher standen
+   * dort zwei gestrichelte Trennlinien und zwei Wörter, die nach einer halben
+   * Sekunde verblassten — man musste sich merken, wo die Felder liegen, und
+   * hatte während der Fahrt keine Rückmeldung, wie weit man gerade einschlägt.
+   */
+  function zeichneSchieber(g, b, h, t) {
+    const bx = b * 0.045, bw = b * PAD_ANTEIL - b * 0.09;
+    const by = h - 40, bh = 16;
+    const mitte = bx + bw / 2;
+    const faehrt = z.lauf && z.lauf.gestartet && !z.lauf.fertig;
+
     g.save();
-    g.globalAlpha = zeigen ? 0.30 : 0.10;
-    g.strokeStyle = FARBEN.leise;
-    g.lineWidth = 1;
-    g.setLineDash([5, 6]);
+
+    /* Die Fläche, auf die der Daumen darf */
+    g.fillStyle = 'rgba(8,7,6,0.42)';
+    rundesRechteck(g, bx - 10, by - 16, bw + 20, bh + 34, 12);
+    g.fill();
+
+    /* Die Bahn */
+    g.fillStyle = 'rgba(255,255,255,0.12)';
+    rundesRechteck(g, bx, by, bw, bh, bh / 2);
+    g.fill();
+    /* Totzone in der Mitte — hier lenkt nichts */
+    g.fillStyle = 'rgba(255,255,255,0.10)';
+    g.fillRect(mitte - bw * TOTZONE / 2, by, bw * TOTZONE, bh);
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.fillRect(mitte - 1, by - 4, 2, bh + 8);
+
+    /* Der Knopf an der Stelle, an der der Daumen liegt */
+    const a = z.lauf ? physik.lenkAuslenkung(z.lauf) : 0;
+    const kx = mitte + (a * bw) / 2;
+    g.fillStyle = a === 0 ? FARBEN.leise : FARBEN.akzent;
     g.beginPath();
-    g.moveTo(b * 0.225, h * 0.42); g.lineTo(b * 0.225, h);
-    g.moveTo(b * 0.45, h * 0.42); g.lineTo(b * 0.45, h);
-    g.stroke();
-    g.setLineDash([]);
-    if (zeigen) {
-      g.globalAlpha = 0.55;
-      g.fillStyle = FARBEN.leise;
-      g.font = '700 13px -apple-system, "Segoe UI", Roboto, sans-serif';
+    g.arc(kx, by + bh / 2, 13, 0, Math.PI * 2);
+    g.fill();
+
+    g.font = '700 13px -apple-system, "Segoe UI", Roboto, sans-serif';
+    g.fillStyle = FARBEN.leise;
+    g.textAlign = 'left';
+    g.fillText('◀', bx - 2, by + bh + 20);
+    g.textAlign = 'right';
+    g.fillText('▶', bx + bw + 2, by + bh + 20);
+
+    /* Beschriftung nur am Anfang — danach spricht der Knopf für sich. */
+    if (t < 1.2) {
       g.textAlign = 'center';
-      g.fillText('◀ LINKS', b * 0.11, h - 28);
-      g.fillText('RECHTS ▶', b * 0.34, h - 28);
-      g.fillText(z.lauf && z.lauf.gestartet ? 'SCHALTEN' : 'GAS', b * 0.72, h - 28);
-      /* Der wichtigste Satz des ganzen Spiels — deshalb steht er im Bild. */
-      g.font = '600 11px -apple-system, "Segoe UI", Roboto, sans-serif';
-      g.fillText('gedrückt halten', b * 0.225, h - 12);
-      g.fillText('tippen', b * 0.72, h - 12);
-      g.textAlign = 'left';
+      g.fillStyle = FARBEN.text;
+      g.font = '700 12px -apple-system, "Segoe UI", Roboto, sans-serif';
+      g.fillText('LENKEN — Daumen hier ziehen', mitte, by - 6);
+      g.fillStyle = FARBEN.leise;
+      g.fillText(faehrt ? 'SCHALTEN' : 'GAS', b * 0.72, h - 22);
     }
+    g.textAlign = 'left';
     g.restore();
   }
 
